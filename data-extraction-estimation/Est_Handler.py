@@ -24,6 +24,8 @@ class Est_Handler:
             # type selection
             if type(self.data) == str:
                 self.Logger.log("INFO: Data selected: OCR Data")
+                Label_Extraction.Label_Extraction(self.data)
 
             if type(self.data) == tuple:
-                self.Logger.log("INFO: Data selected: Selection")
+                self.Logger.log("INFO: Data selected: Image")
+                Estimation_Search.Estimation_Search(self.data)
