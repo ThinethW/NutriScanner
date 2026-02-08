@@ -20,3 +20,31 @@ def Estimation_Search(data):
               "vitamin B6": -1,
               "vitamin B12": -1, }
     return values
+
+
+def search_frequented():
+    pass
+
+
+def search_IRD():
+    pass
+
+
+def search_External():
+    pass
+
+
+def search_Fastfood():
+    pass
+
+
+def search_USDA():
+    pass
+
+
+def Ontology_link_and_search():
+    pass
+
+
+def Append_frequented_foods():
+    pass
