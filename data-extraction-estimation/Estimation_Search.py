@@ -26,6 +26,10 @@ def search_frequented():
     pass
 
 
+def search_NutriScannerDB():
+    pass
+
+
 def search_IRD():
     pass
 

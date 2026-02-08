@@ -1,6 +1,6 @@
-import Logger
 import Estimation_Search
 import Label_Extraction
+import Logger
 
 
 class Est_Handler:
@@ -20,12 +20,18 @@ class Est_Handler:
             self.Logger.log("ERROR: No data selected")
             return
         else:
-
+            values = None
             # type selection
             if type(self.data) == str:
                 self.Logger.log("INFO: Data selected: OCR Data")
-                Label_Extraction.Label_Extraction(self.data)
+                values = Label_Extraction.Label_Extraction(self.data)
+                self.Logger.log(f"INFO: values returned \n{values}")
 
-            if type(self.data) == tuple:
+            elif type(self.data) == tuple:
                 self.Logger.log("INFO: Data selected: Image")
-                Estimation_Search.Estimation_Search(self.data)
+                values = Estimation_Search.Estimation_Search(self.data)
+                self.Logger.log(f"INFO: values returned \n{values}")
+            else:
+                self.Logger.log("ERROR: Not expected Datatype")
+                values = None
+            return values
