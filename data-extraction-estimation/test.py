@@ -1,4 +1,27 @@
-import time
+def main():
+    funcs = [a(), b(), c()]
+    v = []
+    for func in funcs:
+        i = func
+        print(i)
+        v.append(i)
+        if i == "b":
+            break
+    print(v)
 
-t = time.localtime()
-print(f"\n{t[0]}-{t[1]}-{t[2]}:  {t[3]}:{t[4]}:{t[5]} IST\t\tModule 2: data-extraction-estimation\n{message}\n")
+
+def a():
+
+    return "a"
+
+
+def b():
+
+    return "b"
+
+
+def c():
+
+    return "c"
+
+main()

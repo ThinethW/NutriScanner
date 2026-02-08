@@ -1,28 +1,32 @@
-def Estimation_Search(data):
-    values = {"calories": -1,
-              "proteins": -1,
-              "fats": -1,
-              "carbohydrates": -1,
-              "sodium": -1,
-              "Magnesium": -1,
-              "calcium": -1,
-              "iron": -1,
-              "zinc": -1,
-              "vitamin A": -1,
-              "vitamin B": -1,
-              "vitamin C": -1,
-              "vitamin D": -1,
-              "vitamin E": -1,
-              "vitamin K": -1,
-              "vitamin B1": -1,
-              "vitamin B2": -1,
-              "vitamin B3": -1,
-              "vitamin B6": -1,
-              "vitamin B12": -1, }
+import csv
+import Logger
+
+
+def Estimation_Search(data, logger):
+    values = None
+    funcs = [search_frequented(data), search_NutriScannerDB(), search_IRD(), search_Fastfood(), search_External(), search_USDA()]
+    for func in funcs:
+        values = func
+        if values is None:
+            break
+    if values is not None:
+        pass
+    else:
+        logger.log("ERROR: No data found in DB")
     return values
 
 
-def search_frequented():
+def search_frequented(data):
+    file = open("module_2_datasets/frequented_foods.csv", "r")
+    ct = 1
+    for row in csv.reader(file):
+        if row[ct] == data[0]:
+            return row[ct]
+    else:
+        pass
+
+
+def search_NutriScannerDB():
     pass
 
 
@@ -47,4 +51,8 @@ def Ontology_link_and_search():
 
 
 def Append_frequented_foods():
+    pass
+
+
+def Append_NutriScannerDB():
     pass
