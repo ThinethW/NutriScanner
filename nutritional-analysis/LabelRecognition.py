@@ -6,8 +6,8 @@ from ultralytics import YOLO
 
 rf = Roboflow(api_key="S8QmhjablDkzwhnYiLFJ")
 project = rf.workspace("food-detection-model-nb0pz").project("nutrition-label-detector")
-version = project.version(3)
-dataset = version.download("yolov8")
+version = project.version(4)
+dataset = version.download("yolov8") 
 
 # Train the model
 model = YOLO('yolov8n.pt')
