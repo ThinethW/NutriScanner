@@ -703,8 +703,8 @@ class SriLankanNutritionalAnalyzer:
 
     def generate_visualizations(self, totals, indexes, items):
         """Generate both standard and comparison visualizations"""
-        from enhanced_visualization import generate_beautiful_visualizations
-        from Comparion_charts import generate_comparison_visualizations
+        from .visualizations import generate_beautiful_visualizations
+        from .comparison_charts import generate_comparison_visualizations
 
         # Get standard visualizations
         figures = generate_beautiful_visualizations(totals, indexes, items)
