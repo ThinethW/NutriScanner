@@ -123,7 +123,7 @@ def get_item_values(item_name: str) -> tuple:
 
     csv_files = [
         ("FrequentedData.csv",              True,  True),
-        ("module_2_datasets/IRD.csv",       False, False),
+        ("module_2_datasets/IRD.csv",       False, True),
         ("module_2_datasets/External.csv",  False, False),
         ("module_2_datasets/Fastfood.csv",  False, False),
         ("module_2_datasets/USDA.csv",      False, True),
