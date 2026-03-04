@@ -13,7 +13,7 @@ def normalize_name(name: str) -> set:
     """
     name = name.lower()
     name = re.sub(r'[^a-z0-9\s]', '', name)  # Remove punctuation
-    return set(name.split())  # Split into word set
+    return set(name.split())                   # Split into word set
 
 
 def match_rate(input_name: str, db_name: str) -> float:
@@ -66,35 +66,75 @@ def match_rate(input_name: str, db_name: str) -> float:
     return (word_score * 0.7) + (fuzzy_score * 0.3)
 
 
+def hail_mary(item_name: str, csv_files: list) -> tuple:
+    """
+    Last resort search - looks for entries that contain all input words
+    in any order, then returns the one with the fewest total words.
+    Respects yoda flag - only searches enabled files.
+    e.g. "fried rice" will match "Restaurant, Chinese, fried rice, without meat, vegan"
+    and "Restaurant, Chinese, fried rice, with meat, non vegan"
+    but returns the one with fewer words.
+    """
+    input_words = normalize_name(item_name)
+    candidates = []
+
+    for filename, reverse, yoda in csv_files:
+        if not yoda:
+            print("hail mary skipping (not yoda):", filename)
+            continue
+        if not os.path.exists(filename):
+            print("hail mary skipping (not found):", filename)
+            continue
+
+        with open(filename, newline='', encoding='utf-8') as f:
+            rows = list(csv.reader(f))
+
+        data_rows = rows[1:] if rows and rows[0][0].lower() == 'description' else rows
+
+        for row in data_rows:
+            if not row:
+                continue
+
+            db_words = normalize_name(row[0])
+
+            # All input words must be present in the db entry
+            if input_words.issubset(db_words):
+                candidates.append((len(db_words), row))
+
+    if not candidates:
+        return ()
+
+    # Return the entry with the fewest words (least extra context)
+    candidates.sort(key=lambda x: x[0])
+    return tuple(candidates[0][1])
+
+
 def get_item_values(item_name: str) -> tuple:
     """
     Search for a food item across databases using fuzzy matching.
     - Stores candidates with match rate > 20%
     - Returns immediately if match rate > 80%
     - Returns best candidate above 20% if no 80%+ match found
-    - Returns empty tuple if nothing above 20%
-
-    Plus/minus scoring means:
-    - "fried rice" vs "fried rice, chinese, restaurant" still scores well
-      since "fried" and "rice" match, extra words only slightly penalize
+    - Hail mary search if nothing found above 20%
+    - Returns empty tuple if nothing found at all
     """
     best_candidate = ()
     best_score = 0.0
 
     csv_files = [
-        ("FrequentedData.csv", True, True),
-        ("module_2_datasets/IRD.csv", False, False),
-        ("module_2_datasets/External.csv", False, False),
-        ("module_2_datasets/Fastfood.csv", False, False),
-        ("module_2_datasets/USDA.csv", False, True),
+        ("FrequentedData.csv",              True,  True),
+        ("module_2_datasets/IRD.csv",       False, False),
+        ("module_2_datasets/External.csv",  False, False),
+        ("module_2_datasets/Fastfood.csv",  False, False),
+        ("module_2_datasets/USDA.csv",      False, True),
     ]
 
     for filename, reverse, yoda in csv_files:
         if not yoda:
-            print("not yoda:",filename)
+            print("not yoda:", filename)
             continue
         if not os.path.exists(filename):
-            print("not found:",filename)
+            print("not found:", filename)
             continue
 
         with open(filename, newline='', encoding='utf-8') as f:
@@ -125,8 +165,17 @@ def get_item_values(item_name: str) -> tuple:
     # Return best candidate found above 20%
     if best_candidate:
         _append_to_frequented(best_candidate)
+        return best_candidate
 
-    return best_candidate
+    # Hail mary - last resort, still respects yoda
+    print("hail mary activated for:", item_name)
+    hail_mary_result = hail_mary(item_name, csv_files)
+
+    if hail_mary_result:
+        _append_to_frequented(hail_mary_result)
+        return hail_mary_result
+
+    return ()
 
 
 def _append_to_frequented(values: tuple) -> None:
