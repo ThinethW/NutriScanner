@@ -837,37 +837,53 @@ class SriLankanNutritionalAnalyzer:
         }
 
     def generate_text_report(self, result: MealAnalysisResult) -> str:
-        """
-        Generate a formatted text report of the analysis.
-
-        Args:
-            result: Meal analysis result
-
-        Returns:
-            Formatted text report
-        """
+        """Generate a formatted text report of the analysis"""
         lines = []
         lines.append("=" * 80)
         lines.append("NUTRISCANNER - NUTRITIONAL ANALYSIS REPORT")
         lines.append("=" * 80)
         lines.append("")
 
+        # Check if it's packaged food
+        is_packaged = result.metadata.get('source') == 'nutrition_label'
+
         # Meal composition
-        lines.append("MEAL COMPOSITION:")
+        lines.append("FOOD COMPOSITION:")
         lines.append("-" * 80)
         for i, item in enumerate(result.items, 1):
             lines.append(f"{i}. {item.input_name}")
             lines.append(f"   → Matched: {item.matched_food_item} ({item.match_quality} confidence)")
             lines.append(f"   → Category: {item.matched_category}")
-            lines.append(f"   → Portion: {item.grams}g ({item.servings} servings)")
-            lines.append(f"   → Energy: {item.nutrients.get('Energy (kcal)', 0):.1f} kcal")
+
+            if is_packaged:
+                # Get values from scan data (not from nutrients)
+                serving_size = result.totals.get('serving_size', item.grams)
+                serving_unit = result.totals.get('serving_unit', 'g')
+
+                # Get per-serving values from totals
+                energy_per_serving = result.totals.get('energy_kcal_per_serving', 0)
+                protein_per_serving = result.totals.get('protein_per_serving_g', 0)
+                carbs_per_serving = result.totals.get('carbs_per_serving_g', 0)
+                fat_per_serving = result.totals.get('fat_per_serving_g', 0)
+                sodium_per_serving = result.totals.get('sodium_per_serving_mg', 0)
+
+                lines.append(f"   → Serving Size: {serving_size}{serving_unit}")
+                lines.append(f"   → Per Serving:")
+                lines.append(f"      • Energy: {energy_per_serving:.1f} kcal")
+                lines.append(f"      • Protein: {protein_per_serving:.1f}g")
+                lines.append(f"      • Carbs: {carbs_per_serving:.1f}g")
+                lines.append(f"      • Fat: {fat_per_serving:.1f}g")
+                lines.append(f"      • Sodium: {sodium_per_serving:.1f}mg")
+            else:
+                lines.append(f"   → Portion: {item.grams}g ({item.servings} servings)")
+                lines.append(f"   → Energy: {item.nutrients.get('Energy (kcal)', 0):.1f} kcal")
+
             lines.append("")
 
-        # Nutritional totals
-        lines.append("NUTRITIONAL TOTALS:")
+        # Nutritional totals (per 100g for comparison)
+        lines.append("NUTRITIONAL TOTALS (Per 100g for standardized comparison):")
         lines.append("-" * 80)
         lines.append(f"Total Energy: {result.totals.get('Energy (kcal)', 0):.1f} kcal")
-        lines.append(f"Total Weight: {result.totals.get('Total meal weight (g)', 0):.1f}g")
         lines.append(f"Carbohydrates: {result.totals.get('Carbohydrates digestible (g)', 0):.1f}g")
         lines.append(f"Protein: {result.totals.get('Protein (g)', 0):.1f}g")
         lines.append(f"Fat: {result.totals.get('Fat (g)', 0):.1f}g")
@@ -888,19 +904,122 @@ class SriLankanNutritionalAnalyzer:
             lines.append(f"{index_name}: {score:.1f}/100 ({rating})")
         lines.append("")
 
-        # Key indicators
-        lines.append("KEY NUTRITIONAL INDICATORS:")
-        lines.append("-" * 80)
-        for indicator, value in result.indicators.items():
-            lines.append(f"{indicator}: {value:.1f}")
-        lines.append("")
-
         lines.append("=" * 80)
         lines.append("Note: Scores are interpretive indicators, not medical diagnoses.")
         lines.append("Consult a healthcare professional for personalized dietary advice.")
         lines.append("=" * 80)
 
         return "\n".join(lines)
+
+    def analyze_packaged_food(self, nutrition_data: Dict[str, float]) -> MealAnalysisResult:
+        """
+        Analyze packaged food from extracted label data
+
+        Args:
+            nutrition_data: Dictionary from label scanner
+                {
+                    "energy_kcal_per_100g": 461,
+                    "protein_g": 7.24,
+                    "carbohydrates_g": 74.29,
+                    "fiber_g": 1.69,
+                    "total_fat_g": 15.01,
+                    "saturated_fat_g": 6.16,
+                    "sodium_mg": 458,
+                    ...
+                }
+
+        Returns:
+            Complete analysis with insights and visualizations
+        """
+        self._log("\n" + "=" * 60)
+        self._log("Analyzing packaged food from nutrition label...")
+        self._log("=" * 60 + "\n")
+
+        # Convert label data to analyzer format
+        totals = self._convert_label_to_totals(nutrition_data)
+
+        # Compute health indexes (same as meals)
+        self._log("Computing health-oriented indexes...")
+        indexes, indicators = self.compute_health_indexes(totals)
+
+        # Generate visualizations (same as meals)
+        self._log("Generating visualizations...")
+        figures = self.generate_visualizations(totals, indexes, [])
+
+        # Create a pseudo meal item for the package
+        package_item = MealItem(
+            input_name="Packaged Food",
+            matched_food_item="Nutrition Label Data",
+            matched_category="Packaged Food",
+            grams=totals.get("Total meal weight (g)", 100.0),
+            servings=1.0,
+            match_confidence=1.0,
+            nutrients=totals
+        )
+
+        # Compile metadata
+        metadata = {
+            'analysis_version': '2.0',
+            'source': 'nutrition_label',
+            'data_type': 'packaged_food'
+        }
+
+        self._log("\n" + "=" * 60)
+        self._log("✓ Analysis complete!")
+        self._log("=" * 60 + "\n")
+
+        return MealAnalysisResult(
+            items=[package_item],
+            totals=totals,
+            indexes=indexes,
+            indicators=indicators,
+            figures=figures,
+            metadata=metadata
+        )
+
+    def _convert_label_to_totals(self, nutrition_data: Dict) -> Dict[str, float]:
+        """
+        Convert label data format to analyzer totals format
+
+        IMPORTANT: This copies BOTH per-100g AND per-serving values
+        """
+        totals = {}
+
+        # Per-100g values (for analysis/comparison)
+        totals['Energy (kcal)'] = nutrition_data.get('energy_kcal_per_100g', 0)
+        totals['Energy (kJ)'] = nutrition_data.get('energy_kj_per_100g', 0)
+        totals['Protein (g)'] = nutrition_data.get('protein_g', 0)
+        totals['Carbohydrates digestible (g)'] = nutrition_data.get('carbohydrates_g', 0)
+        totals['Total fiber (g)'] = nutrition_data.get('fiber_g', 0)
+        totals['Fat (g)'] = nutrition_data.get('total_fat_g', 0)
+        totals['SFA'] = nutrition_data.get('saturated_fat_g', 0)
+        totals['Sugar (g)'] = nutrition_data.get('sugar_g', 0)
+        totals['Sodium'] = nutrition_data.get('sodium_mg', 0)
+
+        # Per-serving values (for user display)
+        totals['serving_size'] = nutrition_data.get('serving_size', 100)
+        totals['serving_unit'] = nutrition_data.get('serving_unit', 'g')
+        totals['energy_kcal_per_serving'] = nutrition_data.get('energy_kcal_per_serving', 0)
+        totals['energy_kj_per_serving'] = nutrition_data.get('energy_kj_per_serving', 0)
+        totals['protein_per_serving_g'] = nutrition_data.get('protein_per_serving_g', 0)
+        totals['carbs_per_serving_g'] = nutrition_data.get('carbs_per_serving_g', 0)
+        totals['fat_per_serving_g'] = nutrition_data.get('fat_per_serving_g', 0)
+        totals['sodium_per_serving_mg'] = nutrition_data.get('sodium_per_serving_mg', 0)
+        totals['fiber_per_serving_g'] = nutrition_data.get('fiber_per_serving_g', 0)
+        totals['sugar_per_serving_g'] = nutrition_data.get('sugar_per_serving_g', 0)
+
+        # Meta
+        totals["Total meal weight (g)"] = nutrition_data.get('serving_size', 100)
+        totals["Number of items"] = 1.0
+
+        # Add zeros for missing micronutrients
+        for nutrient in ['MUFA', 'PUFA', 'Potassium', 'Calcium', 'Iron',
+                         'Magnesium', 'Zinc', 'Vitamin A(µg)', 'Vitamin C',
+                         'Vitamin D(µg)', 'Folate(µg)']:
+            if nutrient not in totals:
+                totals[nutrient] = 0.0
+
+        return totals
 
 
 # ============================================================================
