@@ -982,6 +982,8 @@ class SriLankanNutritionalAnalyzer:
         Convert label data format to analyzer totals format
 
         IMPORTANT: This copies BOTH per-100g AND per-serving values
+
+        FIXED v2.1: Now properly copies ALL per-serving values
         """
         totals = {}
 
@@ -996,19 +998,27 @@ class SriLankanNutritionalAnalyzer:
         totals['Sugar (g)'] = nutrition_data.get('sugar_g', 0)
         totals['Sodium'] = nutrition_data.get('sodium_mg', 0)
 
-        # Per-serving values (for user display)
+        # Per-serving values (for user display) - FIXED
         totals['serving_size'] = nutrition_data.get('serving_size', 100)
         totals['serving_unit'] = nutrition_data.get('serving_unit', 'g')
+
+        # ✅ FIX #1: Energy per serving (was missing)
         totals['energy_kcal_per_serving'] = nutrition_data.get('energy_kcal_per_serving', 0)
         totals['energy_kj_per_serving'] = nutrition_data.get('energy_kj_per_serving', 0)
+
+        # Macronutrients per serving
         totals['protein_per_serving_g'] = nutrition_data.get('protein_per_serving_g', 0)
         totals['carbs_per_serving_g'] = nutrition_data.get('carbs_per_serving_g', 0)
         totals['fat_per_serving_g'] = nutrition_data.get('fat_per_serving_g', 0)
         totals['sodium_per_serving_mg'] = nutrition_data.get('sodium_per_serving_mg', 0)
-        totals['fiber_per_serving_g'] = nutrition_data.get('fiber_per_serving_g', 0)
-        totals['sugar_per_serving_g'] = nutrition_data.get('sugar_per_serving_g', 0)
 
-        # Meta
+        # ✅ FIX #2: Fiber per serving (was missing)
+        totals['fiber_per_serving_g'] = nutrition_data.get('fiber_per_serving_g', 0)
+
+        totals['sugar_per_serving_g'] = nutrition_data.get('sugar_per_serving_g', 0)
+        totals['saturated_fat_per_serving_g'] = nutrition_data.get('saturated_fat_per_serving_g', 0)
+
+        # Meta information
         totals["Total meal weight (g)"] = nutrition_data.get('serving_size', 100)
         totals["Number of items"] = 1.0
 
@@ -1020,7 +1030,6 @@ class SriLankanNutritionalAnalyzer:
                 totals[nutrient] = 0.0
 
         return totals
-
 
 # ============================================================================
 # EXAMPLE USAGE

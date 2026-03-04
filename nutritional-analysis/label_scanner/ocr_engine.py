@@ -15,30 +15,28 @@ class OCREngine:
         """Initialize PaddleOCR"""
         self.ocr = PaddleOCR(**OCR_CONFIG)
 
-    def extract_text(
-            self,
-            image: np.ndarray
-    ) -> Tuple[Optional[str], Optional[str]]:
-        """
-        Extract text from image
-
-        Args:
-            image: Numpy array of image
-
-        Returns:
-            Tuple of (extracted_text, error_message)
-        """
+    def extract_text(self, image: np.ndarray) -> Tuple[Optional[str], Optional[str]]:
         try:
-            # Run OCR
             result = self.ocr.ocr(image, cls=False)
 
-            # Check if text detected
             if not result or not result[0]:
                 return None, "No text detected"
 
-            # Combine all text lines
-            text_lines = [line[1][0] for line in result[0]]
-            full_text = ' '.join(text_lines)
+            items = []
+            for line in result[0]:
+                box = line[0]  # [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+                text = line[1][0]
+                # top-left point
+                x = box[0][0]
+                y = box[0][1]
+                items.append((y, x, text))
+
+            # Sort: top-to-bottom, then left-to-right
+            items.sort(key=lambda t: (t[0], t[1]))
+
+            # Join with newlines to keep "rows" separate
+            ordered_lines = [t[2] for t in items]
+            full_text = "\n".join(ordered_lines)
 
             return full_text, None
 

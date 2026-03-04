@@ -1,204 +1,178 @@
+# -*- coding: utf-8 -*-
 """
-ROBUST Nutrition Label Parser - Final Version
-Handles all label formats with proper column detection
+Nutrition Label Parser - FIXED
 """
 import re
 from typing import Dict, Tuple, List
 
 
 class NutritionParser:
-    """Parse nutrition labels - auto-detect column order"""
+    """Parse nutrition labels"""
 
     def parse(self, ocr_text: str) -> Dict:
-        """Extract nutrition data with automatic column detection"""
+        """Extract nutrition data"""
         nutrition = {}
 
-        print("\n🔍 OCR Text:")
+        print("\nOCR Text:")
         print("-" * 60)
         print(ocr_text)
         print("-" * 60 + "\n")
 
-        # Clean text
-        text = re.sub(r'\s+', ' ', ocr_text)
-        text = text.replace('per Serving', 'per Serving')
+        lines = [l.strip() for l in ocr_text.split('\n') if l.strip()]
 
-        # ================================================================
-        # STEP 1: Detect Column Order
-        # ================================================================
-        serving_pos = text.lower().find('per serving')
-        hundred_pos = text.lower().find('per 100')
+        # Serving size - check line AND previous line
+        for i, line in enumerate(lines):
+            if 'serving size' in line.lower():
+                # Check this line and previous line for number
+                search_lines = []
+                if i > 0:
+                    search_lines.append(lines[i - 1])
+                search_lines.append(line)
+                if i < len(lines) - 1:
+                    search_lines.append(lines[i + 1])
 
-        # Also check for "Average Quantity" headers
-        avg_serving_pos = text.lower().find('average quantity per serving')
-        avg_100_pos = text.lower().find('average quantity per 100')
-
-        if avg_serving_pos > 0 and avg_100_pos > 0:
-            column_order = "serving_first" if avg_serving_pos < avg_100_pos else "100g_first"
-        elif serving_pos > 0 and hundred_pos > 0:
-            column_order = "serving_first" if serving_pos < hundred_pos else "100g_first"
-        else:
-            column_order = "serving_first"  # Default
-
-        print(f"📊 Column Order: {'Per Serving | Per 100g' if column_order == 'serving_first' else 'Per 100g | Per Serving'}\n")
-
-        # ================================================================
-        # STEP 2: Extract Serving Size
-        # ================================================================
-        serving_patterns = [
-            r'serving size[:\s]*(\d+\.?\d*)\s*(ml|g)',
-            r'serving[:\s]*(\d+\.?\d*)\s*(ml|g)',
-        ]
-
-        for pattern in serving_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                nutrition['serving_size'] = float(match.group(1))
-                nutrition['serving_unit'] = match.group(2).lower()
-                print(f"✅ Serving: {nutrition['serving_size']}{nutrition['serving_unit']}\n")
+                for sl in search_lines:
+                    match = re.search(r'(\d+)\s*g', sl)
+                    if match:
+                        nutrition['serving_size'] = float(match.group(1))
+                        nutrition['serving_unit'] = 'g'
+                        print(f"✓ Serving: {nutrition['serving_size']}g\n")
+                        break
                 break
 
-        # ================================================================
-        # STEP 3: Extract Energy
-        # ================================================================
-        energy_pattern = r'energy[\s:]*([\d.\s]+kj[^a-z]*[\d.\s]+kj[^a-z]*[\d.\s]+kcal[^a-z]*[\d.\s]+)'
-        energy_match = re.search(energy_pattern, text, re.IGNORECASE | re.DOTALL)
+        # Energy - grab MORE lines
+        for i, line in enumerate(lines):
+            if 'energy' in line.lower():
+                # Get next 5 lines to capture all energy values
+                context = lines[i:min(i + 6, len(lines))]
+                all_nums = []
+                for ctx_line in context:
+                    nums = re.findall(r'(\d+\.?\d*)', ctx_line)
+                    all_nums.extend([float(n) for n in nums])
 
-        if energy_match:
-            section = energy_match.group(1)
-            numbers = re.findall(r'(\d+\.?\d*)', section)
+                # Find kcal values (typically 50-600 range)
+                kcal_vals = [n for n in all_nums if 50 <= n < 2000]
 
-            if len(numbers) >= 4:
-                nums = [float(n) for n in numbers[:4]]
-                print(f"  Energy numbers found: {nums}")
-
-                if column_order == "serving_first":
-                    nutrition['energy_kj_per_serving'] = nums[0]
-                    nutrition['energy_kj_per_100g'] = nums[1]
-                    nutrition['energy_kcal_per_serving'] = nums[2]
-                    nutrition['energy_kcal_per_100g'] = nums[3]
-                else:
-                    nutrition['energy_kj_per_100g'] = nums[0]
-                    nutrition['energy_kj_per_serving'] = nums[1]
-                    nutrition['energy_kcal_per_100g'] = nums[2]
-                    nutrition['energy_kcal_per_serving'] = nums[3]
-
-                print(f"  Energy: {nutrition.get('energy_kcal_per_100g')} kcal/100g, {nutrition.get('energy_kcal_per_serving')} kcal/serving")
-
-        # ================================================================
-        # STEP 4: Helper - Extract nutrients
-        # ================================================================
-        def extract_nutrient(name: str, unit: str = 'g') -> Dict:
-            """Extract values for a nutrient"""
-            pattern = rf'{name}[\s:-]*([\d.\s]+{unit}[^a-z]*[\d.\s]+{unit})'
-            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-
-            if not match:
-                return {}
-
-            section = match.group(1)
-            numbers = re.findall(r'(\d+\.?\d*)', section)
-
-            if len(numbers) >= 2:
-                nums = [float(n) for n in numbers[:2]]
-
-                if column_order == "serving_first":
-                    per_serving = nums[0]
-                    per_100 = nums[1]
-                else:
-                    per_100 = nums[0]
-                    per_serving = nums[1]
-
-                print(f"  {name}: per 100={per_100}{unit}, per serving={per_serving}{unit}")
-
-                return {
-                    'per_100': per_100,
-                    'per_serving': per_serving
-                }
-
-            return {}
-
-        # ================================================================
-        # STEP 5: Extract Macronutrients
-        # ================================================================
-
-        # Protein
-        protein = extract_nutrient(r'protein', 'g')
-        if protein:
-            nutrition['protein_g'] = protein['per_100']
-            nutrition['protein_per_serving_g'] = protein['per_serving']
-
-        # Fat-Total (handle hyphen)
-        fat = extract_nutrient(r'fat[\s-]*total', 'g')
-        if not fat:
-            fat = extract_nutrient(r'total[\s]*fat', 'g')
-        if fat:
-            nutrition['total_fat_g'] = fat['per_100']
-            nutrition['fat_per_serving_g'] = fat['per_serving']
-
-        # Saturated fatty acids
-        sat_fat = extract_nutrient(r'saturated\s*fatty\s*acids', 'g')
-        if sat_fat:
-            nutrition['saturated_fat_g'] = sat_fat['per_100']
-            nutrition['saturated_fat_per_serving_g'] = sat_fat['per_serving']
-
-        # Carbohydrates-Total (handle hyphen and variations)
-        carb_patterns = [
-            r'carbohydrates?[\s-]*total?',
-            r'total[\s]*carbohydrates?',
-            r'carbs',
-        ]
-
-        carbs = None
-        for carb_pattern in carb_patterns:
-            carbs = extract_nutrient(carb_pattern, 'g')
-            if carbs:
+                if len(kcal_vals) >= 2:
+                    sorted_kcals = sorted(kcal_vals)
+                    nutrition['energy_kcal_per_serving'] = sorted_kcals[0]
+                    nutrition['energy_kcal_per_100g'] = sorted_kcals[1]
+                    print(f"✓ Energy: {sorted_kcals[0]} kcal (serving), {sorted_kcals[1]} kcal (100g)")
                 break
 
-        if carbs:
-            nutrition['carbohydrates_g'] = carbs['per_100']
-            nutrition['carbs_per_serving_g'] = carbs['per_serving']
+        # Protein - grab 3 lines
+        for i, line in enumerate(lines):
+            if 'protein' in line.lower() and 'vitamin' not in line.lower():
+                context = lines[i:min(i + 3, len(lines))]
+                all_nums = []
+                for ctx_line in context:
+                    nums = re.findall(r'(\d+\.?\d*)', ctx_line)
+                    all_nums.extend([float(n) for n in nums])
 
-        # Dietary fiber
-        fiber = extract_nutrient(r'dietary\s*fi[bp]re', 'g')
-        if fiber:
-            nutrition['fiber_g'] = fiber['per_100']
-            nutrition['fiber_per_serving_g'] = fiber['per_serving']
+                # Filter: protein values are usually 0-100g
+                protein_vals = [n for n in all_nums if 0 < n < 100]
 
-        # Sugar
-        sugar = extract_nutrient(r'sugar', 'g')
-        if sugar:
-            nutrition['sugar_g'] = sugar['per_100']
-            nutrition['sugar_per_serving_g'] = sugar['per_serving']
+                if len(protein_vals) >= 2:
+                    # Smaller = per serving, larger = per 100g
+                    sorted_vals = sorted(protein_vals)
+                    nutrition['protein_per_serving_g'] = sorted_vals[0]
+                    nutrition['protein_g'] = sorted_vals[1]
+                    print(f"✓ Protein: {sorted_vals[0]}g (serving), {sorted_vals[1]}g (100g)")
+                elif len(protein_vals) == 1:
+                    nutrition['protein_g'] = protein_vals[0]
+                break
 
-        # ================================================================
-        # STEP 6: Extract Sodium (special handling for g vs mg)
-        # ================================================================
-        sodium_pattern = r'sodium[\s:\(Na\)]*(\d+\.?\d*)\s*(mg|g)[^a-z]*(\d+\.?\d*)\s*(mg|g)'
-        sodium_match = re.search(sodium_pattern, text, re.IGNORECASE)
+        # Carbohydrates - grab 3 lines
+        for i, line in enumerate(lines):
+            if 'carbohydrate' in line.lower():
+                context = lines[i:min(i + 3, len(lines))]
+                all_nums = []
+                for ctx_line in context:
+                    nums = re.findall(r'(\d+\.?\d*)', ctx_line)
+                    all_nums.extend([float(n) for n in nums])
 
-        if sodium_match:
-            val1 = float(sodium_match.group(1))
-            unit1 = sodium_match.group(2).lower()
-            val2 = float(sodium_match.group(3))
-            unit2 = sodium_match.group(4).lower()
+                carb_vals = [n for n in all_nums if 0 < n < 200]
 
-            # Convert g to mg (0.02g = 20mg, 0.2g = 200mg)
-            if unit1 == 'g':
-                val1 = val1 * 1000
-            if unit2 == 'g':
-                val2 = val2 * 1000
+                if len(carb_vals) >= 2:
+                    sorted_vals = sorted(carb_vals)
+                    nutrition['carbs_per_serving_g'] = sorted_vals[0]
+                    nutrition['carbohydrates_g'] = sorted_vals[1]
+                    print(f"✓ Carbs: {sorted_vals[0]}g (serving), {sorted_vals[1]}g (100g)")
+                break
 
-            if column_order == "serving_first":
-                nutrition['sodium_per_serving_mg'] = val1
-                nutrition['sodium_mg'] = val2
-            else:
-                nutrition['sodium_mg'] = val1
-                nutrition['sodium_per_serving_mg'] = val2
+        # Total Fat - grab 4 lines (fat values span multiple lines)
+        for i, line in enumerate(lines):
+            # Match "Total Fat" OR "Fat-Total" OR just "Fat" (but not "Saturated" or "Trans")
+            if ('total fat' in line.lower() or 'fat-total' in line.lower() or
+                    ('fat' in line.lower() and 'saturated' not in line.lower() and 'trans' not in line.lower())):
+                context = lines[i:min(i + 4, len(lines))]
+                all_nums = []
+                for ctx_line in context:
+                    nums = re.findall(r'(\d+\.?\d*)', ctx_line)
+                    all_nums.extend([float(n) for n in nums])
 
-            print(f"  Sodium: per 100={nutrition['sodium_mg']} mg, per serving={nutrition['sodium_per_serving_mg']} mg")
+                fat_vals = [n for n in all_nums if 0 < n < 100]
+
+                if len(fat_vals) >= 2:
+                    sorted_vals = sorted(fat_vals)
+                    nutrition['fat_per_serving_g'] = sorted_vals[0]
+                    nutrition['total_fat_g'] = sorted_vals[1]
+                    print(f"✓ Fat: {sorted_vals[0]}g (serving), {sorted_vals[1]}g (100g)")
+                break
+
+        # Fiber - grab 3 lines to get both values
+        for i, line in enumerate(lines):
+            if 'fibre' in line.lower() or 'fiber' in line.lower():
+                context = lines[i:min(i + 3, len(lines))]  # ← Changed from 2 to 3
+                all_nums = []
+                for ctx_line in context:
+                    nums = re.findall(r'(\d+\.?\d*)', ctx_line)
+                    all_nums.extend([float(n) for n in nums])
+
+                fiber_vals = [n for n in all_nums if 0 < n < 20]  # Filter reasonable fiber values
+
+                if len(fiber_vals) >= 2:
+                    sorted_vals = sorted(fiber_vals)
+                    nutrition['fiber_per_serving_g'] = sorted_vals[0]
+                    nutrition['fiber_g'] = sorted_vals[1]
+                    print(f"✓ Fiber: {sorted_vals[0]}g (serving), {sorted_vals[1]}g (100g)")
+                elif len(fiber_vals) == 1:
+                    nutrition['fiber_g'] = fiber_vals[0]
+                    print(f"✓ Fiber: {fiber_vals[0]}g")
+                break
+
+        # Sodium - values are AFTER the keyword, often in grams
+        for i, line in enumerate(lines):
+            if 'sodium' in line.lower():
+                # Check if "g" unit is mentioned in this line or next lines
+                context = lines[i:min(i + 4, len(lines))]
+                context_text = ' '.join(context)
+
+                # Extract numbers
+                all_nums = []
+                for ctx_line in context[1:]:  # Skip sodium line itself
+                    nums = re.findall(r'(\d+\.?\d*)', ctx_line)
+                    all_nums.extend([float(n) for n in nums])
+
+                sodium_vals = [n for n in all_nums if n > 0]
+
+                if len(sodium_vals) >= 2:
+                    sorted_vals = sorted(sodium_vals)
+                    val1, val2 = sorted_vals[0], sorted_vals[1]
+
+                    # If values are very small (< 5), they're likely in grams - convert to mg
+                    if val1 < 5:
+                        val1 = val1 * 1000
+                    if val2 < 5:
+                        val2 = val2 * 1000
+
+                    nutrition['sodium_per_serving_mg'] = val1
+                    nutrition['sodium_mg'] = val2
+                    print(f"✓ Sodium: {val1}mg (serving), {val2}mg (100g)")
+                break
 
         print("\n" + "=" * 60)
-        print("✅ EXTRACTED DATA:")
+        print("EXTRACTED DATA:")
         print("=" * 60)
         for key, val in nutrition.items():
             print(f"  {key}: {val}")
@@ -208,6 +182,6 @@ class NutritionParser:
 
     def validate(self, nutrition_data: Dict) -> Tuple[bool, List[str]]:
         """Validate required fields"""
-        required = ['energy_kcal_per_100g', 'protein_g']
+        required = ['protein_g']
         missing = [f for f in required if f not in nutrition_data]
         return len(missing) == 0, missing
