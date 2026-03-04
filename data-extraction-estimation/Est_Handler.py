@@ -14,6 +14,7 @@ def Est_Handler(data: str, iType: str) -> tuple:
     if iType == "label":
         return Label_Extraction.get_label_info(data)
 
+
 if __name__ == "__main__":
     print(f"check 1: Yogurt, plain, low fat:\t\t{Est_Handler("Yogurt, plain, low fat", "image")}")
     print(f"check 2: Yogurt, plain, low fat:\t\t{Est_Handler("Yogurt", "image")}")

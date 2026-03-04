@@ -83,19 +83,22 @@ def get_item_values(item_name: str) -> tuple:
 
     csv_files = [
         ("FrequentedData.csv", True, True),
-        ("IRD.csv", False, False),
-        ("External.csv", False, False),
-        ("Fastfood.csv", False, False),
-        ("USDA.csv", False, True),
+        ("module_2_datasets/IRD.csv", False, False),
+        ("module_2_datasets/External.csv", False, False),
+        ("module_2_datasets/Fastfood.csv", False, False),
+        ("module_2_datasets/USDA.csv", False, True),
     ]
 
     for filename, reverse, yoda in csv_files:
         if not yoda:
+            print("not yoda:",filename)
             continue
         if not os.path.exists(filename):
+            print("not found:",filename)
             continue
 
         with open(filename, newline='', encoding='utf-8') as f:
+            print("reading", filename)
             rows = list(csv.reader(f))
 
         # Skip header row if present
@@ -127,7 +130,7 @@ def get_item_values(item_name: str) -> tuple:
 
 
 def _append_to_frequented(values: tuple) -> None:
-    """Append a found item to FrequentedData.csv."""
+    """Append a found item to FrequentedData.csv, then remove duplicates keeping the last occurrence."""
     freq_path = "FrequentedData.csv"
     file_exists = os.path.exists(freq_path)
 
@@ -143,6 +146,28 @@ def _append_to_frequented(values: tuple) -> None:
             ])
 
         writer.writerow(list(values))
+
+    # Read back, deduplicate keeping last occurrence
+    with open(freq_path, newline='', encoding='utf-8') as f:
+        rows = list(csv.reader(f))
+
+    if not rows:
+        return
+
+    header = rows[0]
+    data_rows = rows[1:]
+
+    # Build dict keyed by description (row[0]), later rows overwrite earlier ones
+    seen = {}
+    for row in data_rows:
+        if row:
+            seen[row[0].strip().lower()] = row  # Last occurrence wins
+
+    # Write back: header + deduplicated rows
+    with open(freq_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        writer.writerows(seen.values())
 
 
 # Test
