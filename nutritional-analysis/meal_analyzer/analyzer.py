@@ -701,258 +701,20 @@ class SriLankanNutritionalAnalyzer:
 
         return indexes, indicators
 
-    def generate_visualizations(
-        self,
-        totals: Dict[str, float],
-        indexes: Dict[str, float],
-        items: List[MealItem]
-    ) -> Dict[str, plt.Figure]:
-        """
-        Generate professional publication-quality visualizations.
+    def generate_visualizations(self, totals, indexes, items):
+        """Generate both standard and comparison visualizations"""
+        from .visualizations import generate_beautiful_visualizations
+        from .comparison_charts import generate_comparison_visualizations
 
-        Args:
-            totals: Total nutrient amounts
-            indexes: Computed health indexes
-            items: List of meal items
+        # Get standard visualizations
+        figures = generate_beautiful_visualizations(totals, indexes, items)
 
-        Returns:
-            Dictionary of matplotlib figures
-        """
-        figures = {}
-
-        # Set professional styling
-        plt.rcParams.update({
-            'font.family': 'serif',
-            'font.size': 10,
-            'axes.labelsize': 11,
-            'axes.titlesize': 12,
-            'axes.titleweight': 'bold',
-            'xtick.labelsize': 9,
-            'ytick.labelsize': 9,
-            'legend.fontsize': 9,
-            'figure.titlesize': 14,
-            'figure.titleweight': 'bold',
-        })
-
-        # ====================================================================
-        # FIGURE 1: Comprehensive Dashboard
-        # ====================================================================
-        fig1 = plt.figure(figsize=(16, 10))
-        gs = GridSpec(3, 3, figure=fig1, hspace=0.35, wspace=0.35)
-
-        # --- Macronutrient Distribution ---
-        ax1 = fig1.add_subplot(gs[0, 0])
-        carbs_g = totals.get("Carbohydrates digestible (g)", 0.0)
-        protein_g = totals.get("Protein (g)", 0.0)
-        fat_g = totals.get("Fat (g)", 0.0)
-
-        cal_carbs = max(0, carbs_g) * 4.0
-        cal_protein = max(0, protein_g) * 4.0
-        cal_fat = max(0, fat_g) * 9.0
-        total_cal = cal_carbs + cal_protein + cal_fat
-
-        if total_cal > 0:
-            sizes = [cal_carbs, cal_protein, cal_fat]
-            labels = ['Carbohydrates', 'Protein', 'Fat']
-            colors = ['#FF9999', '#66B2FF', '#99FF99']
-            explode = (0.05, 0.05, 0.05)
-
-            wedges, texts, autotexts = ax1.pie(
-                sizes, labels=labels, colors=colors, autopct='%1.1f%%',
-                startangle=90, explode=explode, shadow=True
-            )
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontweight('bold')
-            ax1.set_title('Macronutrient Calorie Distribution', pad=20)
-        else:
-            ax1.text(0.5, 0.5, 'Insufficient\nMacro Data',
-                    ha='center', va='center', fontsize=12, color='gray')
-            ax1.set_title('Macronutrient Calorie Distribution', pad=20)
-
-        # --- Health Index Radar ---
-        ax2 = fig1.add_subplot(gs[0, 1:], projection='polar')
-
-        index_names = list(indexes.keys())
-        index_values = [indexes[name] for name in index_names]
-
-        # Shorten labels for readability
-        short_labels = [
-            'Carb\nImpact',
-            'Sodium\nDensity',
-            'Energy\nDensity',
-            'Nutrient\nDensity',
-            'Fat\nQuality'
-        ]
-
-        angles = np.linspace(0, 2 * np.pi, len(index_names), endpoint=False).tolist()
-        index_values_plot = index_values + index_values[:1]
-        angles_plot = angles + angles[:1]
-
-        ax2.plot(angles_plot, index_values_plot, 'o-', linewidth=2, color='#2E86AB', markersize=8)
-        ax2.fill(angles_plot, index_values_plot, alpha=0.25, color='#2E86AB')
-        ax2.set_xticks(angles)
-        ax2.set_xticklabels(short_labels, size=9)
-        ax2.set_ylim(0, 100)
-        ax2.set_yticks([20, 40, 60, 80, 100])
-        ax2.set_yticklabels(['20', '40', '60', '80', '100'], size=8)
-        ax2.grid(True, linestyle='--', alpha=0.6)
-        ax2.set_title('Health-Oriented Index Scores (0-100)', pad=30, fontweight='bold')
-
-        # Add reference circles
-        for val in [50, 75]:
-            ax2.plot(angles_plot, [val] * len(angles_plot), 'k--', alpha=0.3, linewidth=0.5)
-
-        # --- Key Nutritional Indicators ---
-        ax3 = fig1.add_subplot(gs[1, :])
-
-        indicator_keys = [
-            'Digestible carbs (g)',
-            'Fiber (g)',
-            'Protein (g)',
-            'Saturated fat (g)',
-            'Sodium (mg)'
-        ]
-        indicator_values = [totals.get(k, 0.0) for k in indicator_keys]
-        indicator_labels = [k.replace(' (g)', 'g').replace(' (mg)', 'mg') for k in indicator_keys]
-
-        colors_indicators = ['#FFB347', '#77DD77', '#AEC6CF', '#FFB6C1', '#FDFD96']
-        bars = ax3.barh(indicator_labels, indicator_values, color=colors_indicators, edgecolor='black', linewidth=1.2)
-
-        # Add value labels
-        for i, (bar, val) in enumerate(zip(bars, indicator_values)):
-            ax3.text(val + max(indicator_values) * 0.02, i, f'{val:.1f}',
-                    va='center', fontweight='bold', fontsize=9)
-
-        ax3.set_xlabel('Amount', fontweight='bold')
-        ax3.set_title('Key Nutritional Indicators', fontweight='bold', pad=15)
-        ax3.grid(axis='x', alpha=0.3, linestyle='--')
-
-        # --- Micronutrient Profile (% Daily Value) ---
-        ax4 = fig1.add_subplot(gs[2, :])
-
-        micronutrients = ['Calcium', 'Iron', 'Zinc', 'Vitamin A(µg)', 'Vitamin C', 'Folate(µg)']
-        micro_values = []
-        micro_labels = []
-
-        for nutrient in micronutrients:
-            if nutrient in totals and nutrient in DAILY_VALUES:
-                percent_dv = (totals[nutrient] / DAILY_VALUES[nutrient]) * 100.0
-                micro_values.append(min(percent_dv, 150))  # Cap at 150% for display
-                micro_labels.append(nutrient.replace('(µg)', '').strip())
-
-        if micro_values:
-            bars = ax4.bar(micro_labels, micro_values, color='#90BE6D', edgecolor='black', linewidth=1.2, alpha=0.8)
-            ax4.axhline(y=100, color='red', linestyle='--', linewidth=2, label='100% DV')
-            ax4.set_ylabel('% Daily Value', fontweight='bold')
-            ax4.set_title('Micronutrient Content (% of Daily Value)', fontweight='bold', pad=15)
-            ax4.legend(loc='upper right')
-            ax4.grid(axis='y', alpha=0.3, linestyle='--')
-            ax4.set_ylim(0, max(max(micro_values) * 1.15, 120))
-
-            # Add value labels
-            for bar, val in zip(bars, micro_values):
-                height = bar.get_height()
-                ax4.text(bar.get_x() + bar.get_width() / 2., height,
-                        f'{val:.0f}%', ha='center', va='bottom', fontweight='bold', fontsize=8)
-        else:
-            ax4.text(0.5, 0.5, 'Insufficient Micronutrient Data',
-                    ha='center', va='center', transform=ax4.transAxes, fontsize=12, color='gray')
-            ax4.set_title('Micronutrient Content (% of Daily Value)', fontweight='bold', pad=15)
-
-        fig1.suptitle('NutriScanner - Comprehensive Nutritional Analysis Dashboard',
-                     fontsize=16, fontweight='bold', y=0.98)
-
-        figures['dashboard'] = fig1
-
-        # ====================================================================
-        # FIGURE 2: Index Score Card
-        # ====================================================================
-        fig2, ax = plt.subplots(figsize=(12, 8))
-        ax.axis('off')
-
-        # Title
-        ax.text(0.5, 0.95, 'Health-Oriented Index Scores',
-               ha='center', va='top', fontsize=18, fontweight='bold')
-
-        # Score cards
-        y_pos = 0.85
-        for idx_name, idx_value in indexes.items():
-            # Determine color based on score
-            if idx_value >= 75:
-                color = '#4CAF50'  # Green
-                rating = 'Excellent'
-            elif idx_value >= 50:
-                color = '#FFC107'  # Amber
-                rating = 'Good'
-            else:
-                color = '#F44336'  # Red
-                rating = 'Needs Attention'
-
-            # Draw score card
-            rect = mpatches.FancyBboxPatch((0.1, y_pos - 0.08), 0.8, 0.12,
-                                          boxstyle="round,pad=0.01",
-                                          edgecolor=color, facecolor=color,
-                                          alpha=0.2, linewidth=2)
-            ax.add_patch(rect)
-
-            # Index name
-            ax.text(0.15, y_pos, idx_name, fontsize=12, fontweight='bold', va='center')
-
-            # Score
-            ax.text(0.70, y_pos, f'{idx_value:.1f}/100', fontsize=14,
-                   fontweight='bold', ha='right', va='center', color=color)
-
-            # Rating
-            ax.text(0.85, y_pos, rating, fontsize=10, ha='right',
-                   va='center', style='italic', color=color)
-
-            y_pos -= 0.15
-
-        # Footer note
-        ax.text(0.5, 0.05, 'Note: Scores are interpretive indicators, not medical diagnoses',
-               ha='center', va='bottom', fontsize=9, style='italic', color='gray')
-
-        figures['index_scorecard'] = fig2
-
-        # ====================================================================
-        # FIGURE 3: Meal Composition Breakdown
-        # ====================================================================
-        if len(items) > 0:
-            fig3, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-
-            # Weight contribution
-            item_names = [item.matched_food_item[:20] + '...' if len(item.matched_food_item) > 20
-                         else item.matched_food_item for item in items]
-            item_weights = [item.grams for item in items]
-
-            colors_items = plt.cm.Set3(np.linspace(0, 1, len(items)))
-            wedges1, texts1, autotexts1 = ax1.pie(
-                item_weights, labels=item_names, colors=colors_items,
-                autopct='%1.1f%%', startangle=90, textprops={'size': 9}
-            )
-            for autotext in autotexts1:
-                autotext.set_color('white')
-                autotext.set_fontweight('bold')
-            ax1.set_title('Meal Composition by Weight', fontweight='bold', pad=15)
-
-            # Energy contribution
-            item_energies = [item.nutrients.get('Energy (kcal)', 0.0) for item in items]
-
-            wedges2, texts2, autotexts2 = ax2.pie(
-                item_energies, labels=item_names, colors=colors_items,
-                autopct='%1.1f%%', startangle=90, textprops={'size': 9}
-            )
-            for autotext in autotexts2:
-                autotext.set_color('white')
-                autotext.set_fontweight('bold')
-            ax2.set_title('Meal Composition by Energy', fontweight='bold', pad=15)
-
-            fig3.suptitle('Individual Item Contributions', fontsize=14, fontweight='bold')
-
-            figures['meal_composition'] = fig3
+        # Add comparison visualizations
+        comparison_figs = generate_comparison_visualizations(totals)
+        figures.update(comparison_figs)
 
         return figures
+
 
     def analyze_meal(self, food_items: List[str]) -> MealAnalysisResult:
         """
@@ -1075,37 +837,53 @@ class SriLankanNutritionalAnalyzer:
         }
 
     def generate_text_report(self, result: MealAnalysisResult) -> str:
-        """
-        Generate a formatted text report of the analysis.
-
-        Args:
-            result: Meal analysis result
-
-        Returns:
-            Formatted text report
-        """
+        """Generate a formatted text report of the analysis"""
         lines = []
         lines.append("=" * 80)
         lines.append("NUTRISCANNER - NUTRITIONAL ANALYSIS REPORT")
         lines.append("=" * 80)
         lines.append("")
 
+        # Check if it's packaged food
+        is_packaged = result.metadata.get('source') == 'nutrition_label'
+
         # Meal composition
-        lines.append("MEAL COMPOSITION:")
+        lines.append("FOOD COMPOSITION:")
         lines.append("-" * 80)
         for i, item in enumerate(result.items, 1):
             lines.append(f"{i}. {item.input_name}")
             lines.append(f"   → Matched: {item.matched_food_item} ({item.match_quality} confidence)")
             lines.append(f"   → Category: {item.matched_category}")
-            lines.append(f"   → Portion: {item.grams}g ({item.servings} servings)")
-            lines.append(f"   → Energy: {item.nutrients.get('Energy (kcal)', 0):.1f} kcal")
+
+            if is_packaged:
+                # Get values from scan data (not from nutrients)
+                serving_size = result.totals.get('serving_size', item.grams)
+                serving_unit = result.totals.get('serving_unit', 'g')
+
+                # Get per-serving values from totals
+                energy_per_serving = result.totals.get('energy_kcal_per_serving', 0)
+                protein_per_serving = result.totals.get('protein_per_serving_g', 0)
+                carbs_per_serving = result.totals.get('carbs_per_serving_g', 0)
+                fat_per_serving = result.totals.get('fat_per_serving_g', 0)
+                sodium_per_serving = result.totals.get('sodium_per_serving_mg', 0)
+
+                lines.append(f"   → Serving Size: {serving_size}{serving_unit}")
+                lines.append(f"   → Per Serving:")
+                lines.append(f"      • Energy: {energy_per_serving:.1f} kcal")
+                lines.append(f"      • Protein: {protein_per_serving:.1f}g")
+                lines.append(f"      • Carbs: {carbs_per_serving:.1f}g")
+                lines.append(f"      • Fat: {fat_per_serving:.1f}g")
+                lines.append(f"      • Sodium: {sodium_per_serving:.1f}mg")
+            else:
+                lines.append(f"   → Portion: {item.grams}g ({item.servings} servings)")
+                lines.append(f"   → Energy: {item.nutrients.get('Energy (kcal)', 0):.1f} kcal")
+
             lines.append("")
 
-        # Nutritional totals
-        lines.append("NUTRITIONAL TOTALS:")
+        # Nutritional totals (per 100g for comparison)
+        lines.append("NUTRITIONAL TOTALS (Per 100g for standardized comparison):")
         lines.append("-" * 80)
         lines.append(f"Total Energy: {result.totals.get('Energy (kcal)', 0):.1f} kcal")
-        lines.append(f"Total Weight: {result.totals.get('Total meal weight (g)', 0):.1f}g")
         lines.append(f"Carbohydrates: {result.totals.get('Carbohydrates digestible (g)', 0):.1f}g")
         lines.append(f"Protein: {result.totals.get('Protein (g)', 0):.1f}g")
         lines.append(f"Fat: {result.totals.get('Fat (g)', 0):.1f}g")
@@ -1126,13 +904,6 @@ class SriLankanNutritionalAnalyzer:
             lines.append(f"{index_name}: {score:.1f}/100 ({rating})")
         lines.append("")
 
-        # Key indicators
-        lines.append("KEY NUTRITIONAL INDICATORS:")
-        lines.append("-" * 80)
-        for indicator, value in result.indicators.items():
-            lines.append(f"{indicator}: {value:.1f}")
-        lines.append("")
-
         lines.append("=" * 80)
         lines.append("Note: Scores are interpretive indicators, not medical diagnoses.")
         lines.append("Consult a healthcare professional for personalized dietary advice.")
@@ -1140,6 +911,125 @@ class SriLankanNutritionalAnalyzer:
 
         return "\n".join(lines)
 
+    def analyze_packaged_food(self, nutrition_data: Dict[str, float]) -> MealAnalysisResult:
+        """
+        Analyze packaged food from extracted label data
+
+        Args:
+            nutrition_data: Dictionary from label scanner
+                {
+                    "energy_kcal_per_100g": 461,
+                    "protein_g": 7.24,
+                    "carbohydrates_g": 74.29,
+                    "fiber_g": 1.69,
+                    "total_fat_g": 15.01,
+                    "saturated_fat_g": 6.16,
+                    "sodium_mg": 458,
+                    ...
+                }
+
+        Returns:
+            Complete analysis with insights and visualizations
+        """
+        self._log("\n" + "=" * 60)
+        self._log("Analyzing packaged food from nutrition label...")
+        self._log("=" * 60 + "\n")
+
+        # Convert label data to analyzer format
+        totals = self._convert_label_to_totals(nutrition_data)
+
+        # Compute health indexes (same as meals)
+        self._log("Computing health-oriented indexes...")
+        indexes, indicators = self.compute_health_indexes(totals)
+
+        # Generate visualizations (same as meals)
+        self._log("Generating visualizations...")
+        figures = self.generate_visualizations(totals, indexes, [])
+
+        # Create a pseudo meal item for the package
+        package_item = MealItem(
+            input_name="Packaged Food",
+            matched_food_item="Nutrition Label Data",
+            matched_category="Packaged Food",
+            grams=totals.get("Total meal weight (g)", 100.0),
+            servings=1.0,
+            match_confidence=1.0,
+            nutrients=totals
+        )
+
+        # Compile metadata
+        metadata = {
+            'analysis_version': '2.0',
+            'source': 'nutrition_label',
+            'data_type': 'packaged_food'
+        }
+
+        self._log("\n" + "=" * 60)
+        self._log("✓ Analysis complete!")
+        self._log("=" * 60 + "\n")
+
+        return MealAnalysisResult(
+            items=[package_item],
+            totals=totals,
+            indexes=indexes,
+            indicators=indicators,
+            figures=figures,
+            metadata=metadata
+        )
+
+    def _convert_label_to_totals(self, nutrition_data: Dict) -> Dict[str, float]:
+        """
+        Convert label data format to analyzer totals format
+
+        IMPORTANT: This copies BOTH per-100g AND per-serving values
+
+        FIXED v2.1: Now properly copies ALL per-serving values
+        """
+        totals = {}
+
+        # Per-100g values (for analysis/comparison)
+        totals['Energy (kcal)'] = nutrition_data.get('energy_kcal_per_100g', 0)
+        totals['Energy (kJ)'] = nutrition_data.get('energy_kj_per_100g', 0)
+        totals['Protein (g)'] = nutrition_data.get('protein_g', 0)
+        totals['Carbohydrates digestible (g)'] = nutrition_data.get('carbohydrates_g', 0)
+        totals['Total fiber (g)'] = nutrition_data.get('fiber_g', 0)
+        totals['Fat (g)'] = nutrition_data.get('total_fat_g', 0)
+        totals['SFA'] = nutrition_data.get('saturated_fat_g', 0)
+        totals['Sugar (g)'] = nutrition_data.get('sugar_g', 0)
+        totals['Sodium'] = nutrition_data.get('sodium_mg', 0)
+
+        # Per-serving values (for user display) - FIXED
+        totals['serving_size'] = nutrition_data.get('serving_size', 100)
+        totals['serving_unit'] = nutrition_data.get('serving_unit', 'g')
+
+        # ✅ FIX #1: Energy per serving (was missing)
+        totals['energy_kcal_per_serving'] = nutrition_data.get('energy_kcal_per_serving', 0)
+        totals['energy_kj_per_serving'] = nutrition_data.get('energy_kj_per_serving', 0)
+
+        # Macronutrients per serving
+        totals['protein_per_serving_g'] = nutrition_data.get('protein_per_serving_g', 0)
+        totals['carbs_per_serving_g'] = nutrition_data.get('carbs_per_serving_g', 0)
+        totals['fat_per_serving_g'] = nutrition_data.get('fat_per_serving_g', 0)
+        totals['sodium_per_serving_mg'] = nutrition_data.get('sodium_per_serving_mg', 0)
+
+        # ✅ FIX #2: Fiber per serving (was missing)
+        totals['fiber_per_serving_g'] = nutrition_data.get('fiber_per_serving_g', 0)
+
+        totals['sugar_per_serving_g'] = nutrition_data.get('sugar_per_serving_g', 0)
+        totals['saturated_fat_per_serving_g'] = nutrition_data.get('saturated_fat_per_serving_g', 0)
+
+        # Meta information
+        totals["Total meal weight (g)"] = nutrition_data.get('serving_size', 100)
+        totals["Number of items"] = 1.0
+
+        # Add zeros for missing micronutrients
+        for nutrient in ['MUFA', 'PUFA', 'Potassium', 'Calcium', 'Iron',
+                         'Magnesium', 'Zinc', 'Vitamin A(µg)', 'Vitamin C',
+                         'Vitamin D(µg)', 'Folate(µg)']:
+            if nutrient not in totals:
+                totals[nutrient] = 0.0
+
+        return totals
 
 # ============================================================================
 # EXAMPLE USAGE
