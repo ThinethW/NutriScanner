@@ -23,7 +23,7 @@ if __name__ == "__main__":
         "sesame chicken",
         "Restaurant, Chinese, fried rice, without meat",
         "fried rice",
-        "curry",
+        "chicken curry"
     )
 
     for i, test in enumerate(tests, 1):

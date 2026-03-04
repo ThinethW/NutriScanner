@@ -152,13 +152,15 @@ def get_item_values(item_name: str) -> tuple:
             score = match_rate(item_name, row[0])
 
             # Immediate return if high confidence
+            # quick return threshold here
             if score >= 0.80:
                 values = tuple(row)
                 _append_to_frequented(values)
                 return values
 
             # Store as candidate if above threshold
-            if score > best_score and score >= 0.20:
+            # Append Score threshold here
+            if score > best_score and score >= 0.5:
                 best_score = score
                 best_candidate = tuple(row)
 
