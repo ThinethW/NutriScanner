@@ -13,14 +13,17 @@ def normalize_name(name: str) -> set:
     """
     name = name.lower()
     name = re.sub(r'[^a-z0-9\s]', '', name)  # Remove punctuation
-    return set(name.split())                   # Split into word set
+    return set(name.split())  # Split into word set
 
 
 def match_rate(input_name: str, db_name: str) -> float:
     """
-    Compare two food names by:
-    1. Word overlap (order/punctuation/case insensitive)
-    2. Fuzzy character similarity as a tiebreaker
+    Compare two food names using a plus/minus word scoring system.
+
+    Plus points:  words in input that ARE in the db entry
+    Minus points: words in db entry that are NOT in the input
+                  (penalizes extra descriptors like "chinese, restaurant")
+
     Returns a match score between 0.0 and 1.0
     """
     input_words = normalize_name(input_name)
@@ -29,10 +32,28 @@ def match_rate(input_name: str, db_name: str) -> float:
     if not input_words or not db_words:
         return 0.0
 
-    # Word overlap score (Jaccard similarity)
-    intersection = input_words & db_words
-    union = input_words | db_words
-    word_score = len(intersection) / len(union)
+    # Words that match (plus points)
+    matched = input_words & db_words
+
+    # Words in db that aren't in input (minus points)
+    extra_in_db = db_words - input_words
+
+    # Words in input that aren't in db (minus points)
+    missing_from_db = input_words - db_words
+
+    # Scoring:
+    # +1 for each matched word
+    # -0.5 for each extra word in db not in input
+    # -0.5 for each input word not found in db
+    plus_points = len(matched)
+    minus_points = (len(extra_in_db) * 0.5) + (len(missing_from_db) * 0.5)
+
+    raw_score = plus_points - minus_points
+
+    # Normalize against the larger of the two word sets
+    # so score stays between 0 and 1
+    max_possible = max(len(input_words), len(db_words))
+    word_score = max(0.0, raw_score / max_possible)
 
     # Fuzzy character similarity as tiebreaker
     fuzzy_score = SequenceMatcher(
@@ -48,20 +69,24 @@ def match_rate(input_name: str, db_name: str) -> float:
 def get_item_values(item_name: str) -> tuple:
     """
     Search for a food item across databases using fuzzy matching.
-    - Stores candidates with match rate > 60%
+    - Stores candidates with match rate > 20%
     - Returns immediately if match rate > 80%
-    - Returns best candidate above 60% if no 80%+ match found
-    - Returns empty tuple if nothing above 60%
+    - Returns best candidate above 20% if no 80%+ match found
+    - Returns empty tuple if nothing above 20%
+
+    Plus/minus scoring means:
+    - "fried rice" vs "fried rice, chinese, restaurant" still scores well
+      since "fried" and "rice" match, extra words only slightly penalize
     """
     best_candidate = ()
     best_score = 0.0
 
     csv_files = [
-        ("FrequentedData.csv", True,  True),
-        ("IRD.csv",            False, False),
-        ("External.csv",       False, False),
-        ("Fastfood.csv",       False, False),
-        ("USDA.csv",           False, True),
+        ("FrequentedData.csv", True, True),
+        ("IRD.csv", False, False),
+        ("External.csv", False, False),
+        ("Fastfood.csv", False, False),
+        ("USDA.csv", False, True),
     ]
 
     for filename, reverse, yoda in csv_files:
@@ -90,11 +115,11 @@ def get_item_values(item_name: str) -> tuple:
                 return values
 
             # Store as candidate if above threshold
-            if score > best_score and score >= 0.60:
+            if score > best_score and score >= 0.20:
                 best_score = score
                 best_candidate = tuple(row)
 
-    # Return best candidate found above 60%
+    # Return best candidate found above 20%
     if best_candidate:
         _append_to_frequented(best_candidate)
 
