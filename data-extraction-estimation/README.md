@@ -10,7 +10,7 @@ Logger - logs data into log file with time and info
 the estimation handles inputs of (item name, quantity)
 it runs the provided name through a set of different datasets individually in the provided order:
 1. frequented_foods.csv
-2. NutriScannerDB.csv
+2. NutriScannerDB.csv (maybe skip this one)
 3. IRD.csv
 4. Fastfood.csv
 5. External files
