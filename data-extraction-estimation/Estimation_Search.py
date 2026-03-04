@@ -1,176 +1,238 @@
 import csv
-import Logger
-from objects import fooditem
+import os
+import re
+from difflib import SequenceMatcher
 
 
-def create_food_object(row):
+def normalize_name(name: str) -> set:
     """
-    Creates a fooditem object from a CSV row.
-
-    Args:
-        row: CSV row containing [id, name, calories, proteins, fats, carbohydrates,
-             sodium, magnesium, calcium, iron, zinc, vitamin_a, vitamin_b, vitamin_c,
-             vitamin_d, vitamin_e, vitamin_k, vitamin_b1, vitamin_b2, vitamin_b3,
-             vitamin_b6, vitamin_b12, tally]
-
-    Returns:
-        fooditem: Food object with name, nutritional, and tally attributes
+    Normalize a food name into a set of words for comparison.
+    Removes punctuation, spaces, capitalization differences.
+    Splits into individual words so order doesn't matter.
+    e.g. "Rice, Fried" and "fried rice" both become {"rice", "fried"}
     """
-    name = row[1]
-
-    nutritional = {
-        "calories": float(row[2]) if row[2] else -1,
-        "proteins": float(row[3]) if row[3] else -1,
-        "fats": float(row[4]) if row[4] else -1,
-        "carbohydrates": float(row[5]) if row[5] else -1,
-        "sodium": float(row[6]) if row[6] else -1,
-        "magnesium": float(row[7]) if row[7] else -1,
-        "calcium": float(row[8]) if row[8] else -1,
-        "iron": float(row[9]) if row[9] else -1,
-        "zinc": float(row[10]) if row[10] else -1,
-        "vitamin_a": float(row[11]) if row[11] else -1,
-        "vitamin_b": float(row[12]) if row[12] else -1,
-        "vitamin_c": float(row[13]) if row[13] else -1,
-        "vitamin_d": float(row[14]) if row[14] else -1,
-        "vitamin_e": float(row[15]) if row[15] else -1,
-        "vitamin_k": float(row[16]) if row[16] else -1,
-        "vitamin_b1": float(row[17]) if row[17] else -1,
-        "vitamin_b2": float(row[18]) if row[18] else -1,
-        "vitamin_b3": float(row[19]) if row[19] else -1,
-        "vitamin_b6": float(row[20]) if row[20] else -1,
-        "vitamin_b12": float(row[21]) if row[21] else -1,
-    }
-
-    tally = int(row[22]) if len(row) > 22 and row[22] else 0
-
-    return fooditem(name, nutritional, tally)
+    name = name.lower()
+    name = re.sub(r'[^a-z0-9\s]', '', name)  # Remove punctuation
+    return set(name.split())                   # Split into word set
 
 
-def Estimation_Search(data, logger):
+def match_rate(input_name: str, db_name: str) -> float:
     """
-    Searches through multiple datasets to find nutritional information for a food item.
+    Compare two food names using a plus/minus word scoring system.
 
-    Args:
-        data: List where data[0] is the food name to search for
-        logger: Logger object for error reporting
+    Plus points:  words in input that ARE in the db entry
+    Minus points: words in db entry that are NOT in the input
+                  (penalizes extra descriptors like "chinese, restaurant")
 
-    Returns:
-        dict: Food object if found, None otherwise
+    Returns a match score between 0.0 and 1.0
     """
-    search_functions = [
-        lambda: search_frequented(data),
-        lambda: search_NutriScannerDB(data),
-        lambda: search_IRD(data),
-        lambda: search_Fastfood(data),
-        lambda: search_External(data),
-        lambda: search_USDA(data)
+    input_words = normalize_name(input_name)
+    db_words = normalize_name(db_name)
+
+    if not input_words or not db_words:
+        return 0.0
+
+    # Words that match (plus points)
+    matched = input_words & db_words
+
+    # Words in db that aren't in input (minus points)
+    extra_in_db = db_words - input_words
+
+    # Words in input that aren't in db (minus points)
+    missing_from_db = input_words - db_words
+
+    # Scoring:
+    # +1 for each matched word
+    # -0.5 for each extra word in db not in input
+    # -0.5 for each input word not found in db
+    plus_points = len(matched)
+    minus_points = (len(extra_in_db) * 0.5) + (len(missing_from_db) * 0.5)
+
+    raw_score = plus_points - minus_points
+
+    # Normalize against the larger of the two word sets
+    # so score stays between 0 and 1
+    max_possible = max(len(input_words), len(db_words))
+    word_score = max(0.0, raw_score / max_possible)
+
+    # Fuzzy character similarity as tiebreaker
+    fuzzy_score = SequenceMatcher(
+        None,
+        ' '.join(sorted(input_words)),
+        ' '.join(sorted(db_words))
+    ).ratio()
+
+    # Weight word overlap more heavily
+    return (word_score * 0.7) + (fuzzy_score * 0.3)
+
+
+def hail_mary(item_name: str, csv_files: list) -> tuple:
+    """
+    Last resort search - looks for entries that contain all input words
+    in any order, then returns the one with the fewest total words.
+    Respects yoda flag - only searches enabled files.
+    e.g. "fried rice" will match "Restaurant, Chinese, fried rice, without meat, vegan"
+    and "Restaurant, Chinese, fried rice, with meat, non vegan"
+    but returns the one with fewer words.
+    """
+    input_words = normalize_name(item_name)
+    candidates = []
+
+    for filename, reverse, yoda in csv_files:
+        if not yoda:
+            print("hail mary skipping (not yoda):", filename)
+            continue
+        if not os.path.exists(filename):
+            print("hail mary skipping (not found):", filename)
+            continue
+
+        with open(filename, newline='', encoding='utf-8') as f:
+            rows = list(csv.reader(f))
+
+        data_rows = rows[1:] if rows and rows[0][0].lower() == 'description' else rows
+
+        for row in data_rows:
+            if not row:
+                continue
+
+            db_words = normalize_name(row[0])
+
+            # All input words must be present in the db entry
+            if input_words.issubset(db_words):
+                candidates.append((len(db_words), row))
+
+    if not candidates:
+        return ()
+
+    # Return the entry with the fewest words (least extra context)
+    candidates.sort(key=lambda x: x[0])
+    return tuple(candidates[0][1])
+
+
+def get_item_values(item_name: str) -> tuple:
+    """
+    Search for a food item across databases using fuzzy matching.
+    - Stores candidates with match rate > 20%
+    - Returns immediately if match rate > 80%
+    - Returns best candidate above 20% if no 80%+ match found
+    - Hail mary search if nothing found above 20%
+    - Returns empty tuple if nothing found at all
+    """
+    best_candidate = ()
+    best_score = 0.0
+
+    csv_files = [
+        ("FrequentedData.csv",              True,  True),
+        ("module_2_datasets/IRD.csv",       False, False),
+        ("module_2_datasets/External.csv",  False, False),
+        ("module_2_datasets/Fastfood.csv",  False, False),
+        ("module_2_datasets/USDA.csv",      False, True),
     ]
 
-    for search_func in search_functions:
-        values = search_func()
-        if values is not None:
-            return values
+    for filename, reverse, yoda in csv_files:
+        if not yoda:
+            print("not yoda:", filename)
+            continue
+        if not os.path.exists(filename):
+            print("not found:", filename)
+            continue
 
-    # If not found in any dataset, try ontology search
-    values = Ontology_link_and_search(data, logger)
-    if values is not None:
-        return values
+        with open(filename, newline='', encoding='utf-8') as f:
+            print("reading", filename)
+            rows = list(csv.reader(f))
 
-    logger.log("ERROR: No data found in DB")
-    return None
+        # Skip header row if present
+        data_rows = rows[1:] if rows and rows[0][0].lower() == 'description' else rows
+        search_order = reversed(data_rows) if reverse else iter(data_rows)
 
+        for row in search_order:
+            if not row:
+                continue
 
-def search_frequented(data):
-    """Search the user's frequently scanned foods."""
-    try:
-        with open("module_2_datasets/frequented_foods.csv", "r") as file:
-            csv_reader = csv.reader(file)
-            next(csv_reader, None)  # Skip header if present
-            for row in csv_reader:
-                if len(row) > 1 and row[1].lower() == data[0].lower():
-                    return create_food_object(row)
-    except FileNotFoundError:
-        pass
-    return None
+            score = match_rate(item_name, row[0])
 
+            # Immediate return if high confidence
+            if score >= 0.80:
+                values = tuple(row)
+                _append_to_frequented(values)
+                return values
 
-def search_NutriScannerDB(data):
-    """Search the NutriScanner global database."""
-    try:
-        with open("module_2_datasets/NutriScannerDB.csv", "r") as file:
-            csv_reader = csv.reader(file)
-            next(csv_reader, None)  # Skip header if present
-            for row in csv_reader:
-                if len(row) > 1 and row[1].lower() == data[0].lower():
-                    return create_food_object(row)
-    except FileNotFoundError:
-        pass
-    return None
+            # Store as candidate if above threshold
+            if score > best_score and score >= 0.20:
+                best_score = score
+                best_candidate = tuple(row)
 
+    # Return best candidate found above 20%
+    if best_candidate:
+        _append_to_frequented(best_candidate)
+        return best_candidate
 
-def search_IRD(data):
-    """Search the IRD dataset."""
-    try:
-        with open("module_2_datasets/IRD.csv", "r") as file:
-            csv_reader = csv.reader(file)
-            next(csv_reader, None)  # Skip header if present
-            for row in csv_reader:
-                if len(row) > 1 and row[1].lower() == data[0].lower():
-                    return create_food_object(row)
-    except FileNotFoundError:
-        pass
-    return None
+    # Hail mary - last resort, still respects yoda
+    print("hail mary activated for:", item_name)
+    hail_mary_result = hail_mary(item_name, csv_files)
+
+    if hail_mary_result:
+        _append_to_frequented(hail_mary_result)
+        return hail_mary_result
+
+    return ()
 
 
-def search_Fastfood(data):
-    """Search the Fastfood dataset."""
-    try:
-        with open("module_2_datasets/Fastfood.csv", "r") as file:
-            csv_reader = csv.reader(file)
-            next(csv_reader, None)  # Skip header if present
-            for row in csv_reader:
-                if len(row) > 1 and row[1].lower() == data[0].lower():
-                    return create_food_object(row)
-    except FileNotFoundError:
-        pass
-    return None
+def _append_to_frequented(values: tuple) -> None:
+    """Append a found item to FrequentedData.csv, then remove duplicates keeping the last occurrence."""
+    freq_path = "FrequentedData.csv"
+    file_exists = os.path.exists(freq_path)
+
+    with open(freq_path, 'a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+
+        if not file_exists or os.path.getsize(freq_path) == 0:
+            writer.writerow([
+                "description", "calories", "proteins", "fats", "carbohydrates",
+                "sodium", "Magnesium", "calcium", "iron", "zinc",
+                "vitamin A", "vitamin C", "vitamin D", "vitamin E", "vitamin K",
+                "vitamin B1", "vitamin B2", "vitamin B3", "vitamin B6", "vitamin B12"
+            ])
+
+        writer.writerow(list(values))
+
+    # Read back, deduplicate keeping last occurrence
+    with open(freq_path, newline='', encoding='utf-8') as f:
+        rows = list(csv.reader(f))
+
+    if not rows:
+        return
+
+    header = rows[0]
+    data_rows = rows[1:]
+
+    # Build dict keyed by description (row[0]), later rows overwrite earlier ones
+    seen = {}
+    for row in data_rows:
+        if row:
+            seen[row[0].strip().lower()] = row  # Last occurrence wins
+
+    # Write back: header + deduplicated rows
+    with open(freq_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        writer.writerows(seen.values())
 
 
-def search_External(data):
-    """Search external files dataset."""
-    try:
-        with open("module_2_datasets/External.csv", "r") as file:
-            csv_reader = csv.reader(file)
-            next(csv_reader, None)  # Skip header if present
-            for row in csv_reader:
-                if len(row) > 1 and row[1].lower() == data[0].lower():
-                    return create_food_object(row)
-    except FileNotFoundError:
-        pass
-    return None
+# Test
+if __name__ == "__main__":
+    item = input("Enter item name: ")
+    result = get_item_values(item)
 
-
-def search_USDA(data):
-    """Search the USDA dataset (largest, searched last)."""
-    try:
-        with open("module_2_datasets/USDA.csv", "r") as file:
-            csv_reader = csv.reader(file)
-            next(csv_reader, None)  # Skip header if present
-            for row in csv_reader:
-                if len(row) > 1 and row[1].lower() == data[0].lower():
-                    return create_food_object(row)
-    except FileNotFoundError:
-        pass
-    return None
-
-
-def Ontology_link_and_search():
-    pass
-
-
-def Append_frequented_foods():
-    pass
-
-
-def Append_NutriScannerDB():
-    pass
+    if result:
+        headers = [
+            "description", "calories", "proteins", "fats", "carbohydrates",
+            "sodium", "Magnesium", "calcium", "iron", "zinc",
+            "vitamin A", "vitamin C", "vitamin D", "vitamin E", "vitamin K",
+            "vitamin B1", "vitamin B2", "vitamin B3", "vitamin B6", "vitamin B12"
+        ]
+        print("\nNutritional Values:")
+        for header, value in zip(headers, result):
+            print(f"  {header}: {value}")
+    else:
+        print(f"Item '{item}' not found in any database.")
