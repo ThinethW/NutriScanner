@@ -978,13 +978,8 @@ class SriLankanNutritionalAnalyzer:
         )
 
     def _convert_label_to_totals(self, nutrition_data: Dict) -> Dict[str, float]:
-        """
-        Convert label data format to analyzer totals format
+        """Convert label data to analyzer format"""
 
-        IMPORTANT: This copies BOTH per-100g AND per-serving values
-
-        FIXED v2.1: Now properly copies ALL per-serving values
-        """
         totals = {}
 
         # Per-100g values (for analysis/comparison)
@@ -998,28 +993,21 @@ class SriLankanNutritionalAnalyzer:
         totals['Sugar (g)'] = nutrition_data.get('sugar_g', 0)
         totals['Sodium'] = nutrition_data.get('sodium_mg', 0)
 
-        # Per-serving values (for user display) - FIXED
+        # Per-serving values (for user display)
         totals['serving_size'] = nutrition_data.get('serving_size', 100)
         totals['serving_unit'] = nutrition_data.get('serving_unit', 'g')
-
-        # ✅ FIX #1: Energy per serving (was missing)
         totals['energy_kcal_per_serving'] = nutrition_data.get('energy_kcal_per_serving', 0)
         totals['energy_kj_per_serving'] = nutrition_data.get('energy_kj_per_serving', 0)
-
-        # Macronutrients per serving
         totals['protein_per_serving_g'] = nutrition_data.get('protein_per_serving_g', 0)
         totals['carbs_per_serving_g'] = nutrition_data.get('carbs_per_serving_g', 0)
         totals['fat_per_serving_g'] = nutrition_data.get('fat_per_serving_g', 0)
         totals['sodium_per_serving_mg'] = nutrition_data.get('sodium_per_serving_mg', 0)
-
-        # ✅ FIX #2: Fiber per serving (was missing)
         totals['fiber_per_serving_g'] = nutrition_data.get('fiber_per_serving_g', 0)
-
         totals['sugar_per_serving_g'] = nutrition_data.get('sugar_per_serving_g', 0)
-        totals['saturated_fat_per_serving_g'] = nutrition_data.get('saturated_fat_per_serving_g', 0)
 
-        # Meta information
-        totals["Total meal weight (g)"] = nutrition_data.get('serving_size', 100)
+        # CRITICAL FIX: Use 100g for meal weight (not serving size!)
+        # This ensures health scores are calculated correctly
+        totals["Total meal weight (g)"] = 100.0  # ← CHANGED FROM serving_size
         totals["Number of items"] = 1.0
 
         # Add zeros for missing micronutrients
