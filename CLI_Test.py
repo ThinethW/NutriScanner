@@ -9,7 +9,7 @@ def CLI_main():
 
     model1_c = model1.EnsembleFoodDetector(model_paths)
 
-    image = r"image1.jpg"
+    image = r"image2.jpg"
 
     o1 = model1_c.quick_detect(image)
 
@@ -19,7 +19,7 @@ def CLI_main():
 
     o2 = []
     for i in o1:
-        print(f"----  now checking {i}")
+        print(f"\n----  now checking {i}")
         o2i = Est_Handler.Est_Handler(i,"image")
         o2.append(o2i)
 

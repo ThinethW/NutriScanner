@@ -160,7 +160,7 @@ def get_item_values(item_name: str) -> tuple:
 
             # Store as candidate if above threshold
             # Append Score threshold here
-            if score > best_score and score >= 0.5:
+            if score > best_score and score >= 0.51:
                 best_score = score
                 best_candidate = tuple(row)
 
