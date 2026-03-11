@@ -1,6 +1,7 @@
 # ============================================================
 # NUTRISCANNER - PROFESSIONAL HEALTH AI PLATFORM
 # Modern Enterprise-Grade Streamlit Application
+# 🍊 DARK CREAM, ORANGE & GREEN THEME 🌿
 # ============================================================
 
 import streamlit as st
@@ -9,7 +10,6 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import joblib
 from pathlib import Path
 import time
 from datetime import datetime, timedelta
@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 # ============================================================
 st.set_page_config(
     page_title="NutriScanner Pro | AI Health Intelligence",
-    page_icon="🔬",
+    page_icon="🥗",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
@@ -31,46 +31,90 @@ st.set_page_config(
 
 
 # ============================================================
-# 2. MODERN PROFESSIONAL CSS THEME
+# 2. DARK CREAM, ORANGE & GREEN CSS THEME
 # ============================================================
 def apply_modern_styles():
     st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-    /* === GLOBAL VARIABLES === */
+    /* === GLOBAL VARIABLES - DARK CREAM, ORANGE & GREEN PALETTE === */
     :root {
-        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        --accent-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        --dark-bg: #0f0f23;
-        --card-bg: #1a1a2e;
-        --card-border: #2d2d44;
-        --text-primary: #ffffff;
-        --text-secondary: #a0a0b0;
-        --success: #00d9a5;
-        --warning: #f59e0b;
-        --danger: #ef4444;
-        --info: #3b82f6;
+        --primary-gradient: linear-gradient(135deg, #F97316 0%, #C2410C 100%);
+        --secondary-gradient: linear-gradient(135deg, #22C55E 0%, #15803D 100%);
+        --accent-gradient: linear-gradient(135deg, #FB923C 0%, #EA580C 100%);
+        --warm-gradient: linear-gradient(135deg, #44372A 0%, #362C22 100%);
+
+        --bg-darkest: #1C1612;
+        --bg-darker: #251E18;
+        --bg-dark: #2E251D;
+        --bg-medium: #3D3128;
+        --bg-light: #4A3C31;
+
+        --card-bg: #332922;
+        --card-bg-hover: #3D3128;
+        --card-border: #4A3C31;
+        --card-border-hover: #5C4A3A;
+        --card-shadow: rgba(249, 115, 22, 0.15);
+
+        --text-primary: #FAF5F0;
+        --text-secondary: #D4C4B5;
+        --text-muted: #A89585;
+        --text-light: #8B7A6B;
+
+        --orange-300: #FDBA74;
+        --orange-400: #FB923C;
+        --orange-500: #F97316;
+        --orange-600: #EA580C;
+        --orange-700: #C2410C;
+
+        --green-400: #4ADE80;
+        --green-500: #22C55E;
+        --green-600: #16A34A;
+        --green-700: #15803D;
+
+        --success: #22C55E;
+        --success-light: rgba(34, 197, 94, 0.2);
+        --warning: #F97316;
+        --warning-light: rgba(249, 115, 22, 0.2);
+        --danger: #EF4444;
+        --danger-light: rgba(239, 68, 68, 0.2);
+        --info: #0EA5E9;
+        --info-light: rgba(14, 165, 233, 0.2);
     }
 
-    /* === GLOBAL STYLING === */
     html, body, [data-testid="stAppViewContainer"] {
         font-family: 'Plus Jakarta Sans', sans-serif !important;
-        background-color: var(--dark-bg) !important;
+        background: linear-gradient(180deg, var(--bg-darkest) 0%, var(--bg-darker) 100%) !important;
         color: var(--text-primary) !important;
     }
 
-    /* === SIDEBAR === */
+    [data-testid="stAppViewContainer"] > .main {
+        background: transparent !important;
+    }
+
+    .main .block-container {
+        background: transparent !important;
+    }
+
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%) !important;
-        border-right: 1px solid var(--card-border) !important;
+        background: linear-gradient(180deg, #2E251D 0%, #251E18 50%, #1C1612 100%) !important;
+        border-right: 2px solid var(--card-border) !important;
+    }
+
+    [data-testid="stSidebar"] > div:first-child {
+        background: transparent !important;
+    }
+
+    [data-testid="stSidebar"] * {
+        color: var(--text-primary) !important;
     }
 
     .sidebar-brand {
         background: var(--primary-gradient);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        background-clip: text;
         font-size: 32px;
         font-weight: 800;
         text-align: center;
@@ -79,257 +123,383 @@ def apply_modern_styles():
         margin-bottom: 30px;
     }
 
-    [data-testid="stSidebar"] .stRadio label {
-        background: rgba(255, 255, 255, 0.05);
-        margin: 8px 0;
-        padding: 15px 20px;
-        border-radius: 12px;
-        border: 1px solid transparent;
-        transition: all 0.3s ease;
+    [data-testid="stSidebar"] .stRadio > div {
+        gap: 8px;
+    }
+
+    [data-testid="stSidebar"] .stRadio > div > label {
+        background: rgba(74, 60, 49, 0.5) !important;
+        margin: 4px 0 !important;
+        padding: 15px 20px !important;
+        border-radius: 14px !important;
+        border: 2px solid transparent !important;
+        transition: all 0.3s ease !important;
         color: var(--text-secondary) !important;
+        backdrop-filter: blur(10px);
+        cursor: pointer;
     }
 
-    [data-testid="stSidebar"] .stRadio label:hover {
-        background: rgba(102, 126, 234, 0.2);
-        border-color: #667eea;
-        color: white !important;
+    [data-testid="stSidebar"] .stRadio > div > label:hover {
+        background: rgba(249, 115, 22, 0.15) !important;
+        border-color: var(--orange-500) !important;
+        color: var(--orange-300) !important;
+        transform: translateX(5px);
     }
 
-    [data-testid="stSidebar"] .stRadio input:checked + label {
-        background: var(--primary-gradient);
-        color: white !important;
-        border-color: transparent;
+    p, span, div, label, .stMarkdown, .stText {
+        color: var(--text-primary) !important;
     }
 
-    /* === HEADINGS === */
-    h1, h2, h3, h4 {
+    h1, h2, h3, h4, h5, h6 {
         font-weight: 700 !important;
         letter-spacing: -0.5px;
+        color: var(--text-primary) !important;
     }
 
     h1 {
-        background: var(--primary-gradient);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        background: var(--primary-gradient) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
         font-size: 3.5rem !important;
     }
 
     h2 {
         color: var(--text-primary) !important;
         font-size: 2.2rem !important;
-        border-left: 4px solid #667eea;
-        padding-left: 20px;
-        margin: 40px 0 20px 0;
+        border-left: 5px solid var(--orange-500) !important;
+        padding-left: 20px !important;
+        margin: 40px 0 20px 0 !important;
+        -webkit-text-fill-color: var(--text-primary) !important;
     }
 
     h3 {
         color: var(--text-secondary) !important;
         font-size: 1.5rem !important;
+        -webkit-text-fill-color: var(--text-secondary) !important;
     }
 
-    /* === CARDS === */
     .metric-card {
-        background: linear-gradient(145deg, #1a1a2e 0%, #16213e 100%);
-        border: 1px solid var(--card-border);
-        border-radius: 20px;
-        padding: 30px;
+        background: linear-gradient(145deg, #3D3128 0%, #332922 100%);
+        border: 2px solid var(--card-border);
+        border-radius: 24px;
+        padding: 28px;
         margin: 10px 0;
-        transition: all 0.4s ease;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        box-shadow: 0 4px 25px rgba(0, 0, 0, 0.3);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .metric-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--primary-gradient);
+        opacity: 0;
+        transition: opacity 0.3s ease;
     }
 
     .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
-        border-color: #667eea;
+        transform: translateY(-8px);
+        box-shadow: 0 15px 50px rgba(249, 115, 22, 0.25);
+        border-color: var(--orange-500);
+    }
+
+    .metric-card:hover::before {
+        opacity: 1;
     }
 
     .metric-value {
-        font-size: 3rem;
+        font-size: 2.8rem;
         font-weight: 800;
         background: var(--primary-gradient);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1.2;
     }
 
     .metric-label {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
+        color: var(--text-muted) !important;
+        font-size: 0.85rem;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-top: 5px;
+        letter-spacing: 1.5px;
+        margin-top: 8px;
+        font-weight: 600;
     }
 
     .metric-delta {
         font-size: 0.85rem;
         font-weight: 600;
-        padding: 5px 12px;
-        border-radius: 20px;
+        padding: 6px 14px;
+        border-radius: 25px;
         display: inline-block;
-        margin-top: 10px;
+        margin-top: 12px;
     }
 
     .delta-positive {
-        background: rgba(0, 217, 165, 0.2);
-        color: var(--success);
+        background: var(--success-light);
+        color: var(--green-400) !important;
     }
 
     .delta-negative {
-        background: rgba(239, 68, 68, 0.2);
-        color: var(--danger);
+        background: var(--danger-light);
+        color: #F87171 !important;
     }
 
-    /* === HERO SECTION === */
     .hero-banner {
-        background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
-        border: 1px solid var(--card-border);
-        border-radius: 30px;
+        background: linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(194, 65, 12, 0.08) 50%, rgba(34, 197, 94, 0.1) 100%);
+        border: 2px solid var(--card-border);
+        border-radius: 32px;
         padding: 60px;
         margin: 30px 0;
         text-align: center;
         backdrop-filter: blur(10px);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hero-banner::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(249, 115, 22, 0.08) 0%, transparent 50%);
+        animation: float 15s ease-in-out infinite;
+    }
+
+    @keyframes float {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        33% { transform: translate(30px, -30px) rotate(120deg); }
+        66% { transform: translate(-20px, 20px) rotate(240deg); }
     }
 
     .hero-banner h1 {
         margin-bottom: 20px;
+        position: relative;
+        z-index: 1;
     }
 
     .hero-banner p {
-        color: var(--text-secondary);
+        color: var(--text-secondary) !important;
         font-size: 1.2rem;
         max-width: 600px;
         margin: 0 auto;
+        position: relative;
+        z-index: 1;
     }
 
-    /* === BUTTONS === */
-    .stButton>button {
-        background: var(--primary-gradient);
-        color: white;
-        border: none;
-        border-radius: 12px;
-        padding: 14px 32px;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    .stButton > button {
+        background: var(--primary-gradient) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 14px !important;
+        padding: 14px 32px !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 20px rgba(249, 115, 22, 0.4) !important;
     }
 
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+    .stButton > button:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 8px 30px rgba(249, 115, 22, 0.5) !important;
     }
 
-    /* === PROGRESS BARS === */
     .stProgress > div > div {
-        background: var(--primary-gradient);
+        background: var(--primary-gradient) !important;
         border-radius: 10px;
     }
 
-    /* === DATAFRAMES === */
-    .dataframe {
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: 15px;
-        overflow: hidden;
-    }
-
-    /* === ALERTS === */
-    .stAlert {
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: 15px;
-    }
-
-    /* === TABS === */
     .stTabs [data-baseweb="tab-list"] {
         background: var(--card-bg);
-        border-radius: 15px;
-        padding: 5px;
-        gap: 5px;
+        border-radius: 16px;
+        padding: 6px;
+        gap: 6px;
+        border: 2px solid var(--card-border);
     }
 
     .stTabs [data-baseweb="tab"] {
         background: transparent;
-        color: var(--text-secondary);
-        border-radius: 10px;
+        color: var(--text-muted) !important;
+        border-radius: 12px;
         padding: 12px 24px;
         transition: all 0.3s ease;
+        font-weight: 500;
+    }
+
+    .stTabs [data-baseweb="tab"]:hover {
+        background: var(--warning-light);
+        color: var(--orange-300) !important;
     }
 
     .stTabs [data-baseweb="tab"][aria-selected="true"] {
-        background: var(--primary-gradient);
-        color: white;
+        background: var(--primary-gradient) !important;
+        color: white !important;
     }
 
-    /* === SCROLLBAR === */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input {
+        background: var(--bg-medium) !important;
+        border: 2px solid var(--card-border) !important;
+        border-radius: 12px !important;
+        color: var(--text-primary) !important;
+        transition: all 0.3s ease !important;
+        padding: 12px 16px !important;
+    }
+
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus {
+        border-color: var(--orange-500) !important;
+        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2) !important;
+        background: var(--bg-light) !important;
+    }
+
+    .stTextInput label,
+    .stNumberInput label,
+    .stSelectbox label,
+    .stMultiSelect label {
+        color: var(--text-primary) !important;
+        font-weight: 500 !important;
+    }
+
+    .stSelectbox > div > div,
+    .stMultiSelect > div > div {
+        background: var(--bg-medium) !important;
+        border: 2px solid var(--card-border) !important;
+        border-radius: 12px !important;
+        color: var(--text-primary) !important;
+    }
+
+    .stSelectbox > div > div:hover,
+    .stMultiSelect > div > div:hover {
+        border-color: var(--orange-500) !important;
+    }
+
+    .stSlider > div > div > div > div {
+        background: var(--primary-gradient) !important;
+    }
+
+    .stSlider label {
+        color: var(--text-primary) !important;
+    }
+
+    .stCheckbox > label {
+        color: var(--text-primary) !important;
+    }
+
     ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 10px;
+        height: 10px;
     }
 
     ::-webkit-scrollbar-track {
-        background: var(--dark-bg);
+        background: var(--bg-darker);
+        border-radius: 5px;
     }
 
     ::-webkit-scrollbar-thumb {
-        background: #667eea;
-        border-radius: 4px;
+        background: linear-gradient(180deg, var(--orange-500), var(--orange-600));
+        border-radius: 5px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-        background: #764ba2;
+        background: linear-gradient(180deg, var(--orange-400), var(--orange-500));
     }
 
-    /* === RISK INDICATORS === */
     .risk-high {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
-        border: 2px solid var(--danger);
-        border-radius: 15px;
-        padding: 20px;
-        margin: 10px 0;
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.08) 100%);
+        border: 2px solid #EF4444;
+        border-radius: 18px;
+        padding: 22px 28px;
+        margin: 14px 0;
+        color: var(--text-primary) !important;
+        box-shadow: 0 4px 20px rgba(239, 68, 68, 0.15);
     }
 
     .risk-medium {
-        background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%);
-        border: 2px solid var(--warning);
-        border-radius: 15px;
-        padding: 20px;
-        margin: 10px 0;
+        background: linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(249, 115, 22, 0.08) 100%);
+        border: 2px solid var(--orange-500);
+        border-radius: 18px;
+        padding: 22px 28px;
+        margin: 14px 0;
+        color: var(--text-primary) !important;
+        box-shadow: 0 4px 20px rgba(249, 115, 22, 0.15);
     }
 
     .risk-low {
-        background: linear-gradient(135deg, rgba(0, 217, 165, 0.2) 0%, rgba(0, 217, 165, 0.1) 100%);
-        border: 2px solid var(--success);
-        border-radius: 15px;
-        padding: 20px;
-        margin: 10px 0;
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.08) 100%);
+        border: 2px solid var(--green-500);
+        border-radius: 18px;
+        padding: 22px 28px;
+        margin: 14px 0;
+        color: var(--text-primary) !important;
+        box-shadow: 0 4px 20px rgba(34, 197, 94, 0.15);
     }
 
-    /* === LOADING ANIMATION === */
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
+    .risk-high strong, .risk-medium strong, .risk-low strong {
+        color: var(--text-primary) !important;
     }
 
-    .loading-text {
-        animation: pulse 1.5s ease-in-out infinite;
+    .stSuccess {
+        background: var(--success-light) !important;
+        border-left: 4px solid var(--success) !important;
+        border-radius: 12px !important;
+        color: var(--text-primary) !important;
     }
 
-    /* === FOOTER === */
+    .stCaption, caption, figcaption {
+        color: var(--text-muted) !important;
+    }
+
+    hr {
+        border: none;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--card-border), transparent);
+        margin: 30px 0;
+    }
+
     .footer {
         text-align: center;
         padding: 40px 0;
         margin-top: 60px;
-        border-top: 1px solid var(--card-border);
-        color: var(--text-secondary);
+        border-top: 2px solid var(--card-border);
+        color: var(--text-muted) !important;
         font-size: 0.9rem;
+        background: linear-gradient(180deg, transparent 0%, rgba(249, 115, 22, 0.05) 100%);
+    }
+
+    .footer p {
+        color: var(--text-muted) !important;
+    }
+
+    .footer a {
+        color: var(--orange-400) !important;
+        text-decoration: none;
+        font-weight: 600;
+        transition: color 0.3s ease;
+    }
+
+    .footer a:hover {
+        color: var(--orange-300) !important;
+    }
+
+    .js-plotly-plot {
+        border-radius: 16px;
+        overflow: hidden;
     }
     </style>
     """, unsafe_allow_html=True)
 
 
 # ============================================================
-# 3. HELPER FUNCTIONS
+# 3. HELPER FUNCTIONS - FIXED FOR PLOTLY COMPATIBILITY
 # ============================================================
 def create_risk_gauge(value, title):
     """Create a gauge chart for risk assessment"""
@@ -337,23 +507,27 @@ def create_risk_gauge(value, title):
         mode="gauge+number+delta",
         value=value,
         domain={'x': [0, 1], 'y': [0, 1]},
-        title={'text': title, 'font': {'size': 16, 'color': '#ffffff'}},
-        delta={'reference': 50, 'increasing': {'color': '#ef4444'}, 'decreasing': {'color': '#00d9a5'}},
+        title={'text': title, 'font': {'size': 16, 'color': '#FAF5F0'}},
+        delta={'reference': 50, 'increasing': {'color': '#EF4444'}, 'decreasing': {'color': '#22C55E'}},
         gauge={
-            'axis': {'range': [None, 100], 'tickcolor': '#ffffff'},
-            'bar': {'color': "#667eea"},
-            'bgcolor': '#1a1a2e',
+            'axis': {'range': [None, 100], 'tickcolor': '#D4C4B5', 'tickfont': {'color': '#D4C4B5'}},
+            'bar': {'color': "#F97316"},
+            'bgcolor': '#2E251D',
             'borderwidth': 2,
-            'bordercolor': '#2d2d44',
+            'bordercolor': '#4A3C31',
             'steps': [
-                {'range': [0, 40], 'color': 'rgba(0, 217, 165, 0.2)'},
-                {'range': [40, 60], 'color': 'rgba(245, 158, 11, 0.2)'},
-                {'range': [60, 100], 'color': 'rgba(239, 68, 68, 0.2)'}
+                {'range': [0, 40], 'color': 'rgba(34, 197, 94, 0.25)'},
+                {'range': [40, 60], 'color': 'rgba(249, 115, 22, 0.25)'},
+                {'range': [60, 100], 'color': 'rgba(239, 68, 68, 0.25)'}
             ],
         }
     ))
-    fig.update_layout(height=250, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor='#1a1a2e',
-                      font={'color': '#ffffff'})
+    fig.update_layout(
+        height=250,
+        margin=dict(l=20, r=20, t=50, b=20),
+        paper_bgcolor='#332922',
+        font={'color': '#FAF5F0'}
+    )
     return fig
 
 
@@ -365,47 +539,74 @@ def create_nutrition_pie_chart(data):
         names='Nutrient',
         color='Nutrient',
         color_discrete_map={
-            'Protein': '#00d9a5',
-            'Carbohydrates': '#667eea',
-            'Fats': '#f59e0b',
-            'Fiber': '#3b82f6'
+            'Protein': '#22C55E',
+            'Carbohydrates': '#F97316',
+            'Fats': '#FDBA74',
+            'Fiber': '#16A34A'
         },
-        hole=0.4,
-        opacity=0.9
+        hole=0.45,
+        opacity=0.95
     )
-    fig.update_traces(textposition='inside', textinfo='percent+label', textfont_size=12)
+    fig.update_traces(
+        textposition='inside',
+        textinfo='percent+label',
+        textfont_size=12,
+        textfont_color='#FAF5F0',
+        marker=dict(line=dict(color='#332922', width=3))
+    )
     fig.update_layout(
         height=350,
         showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
-        paper_bgcolor='#1a1a2e',
-        font={'color': '#ffffff', 'size': 12},
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.2,
+            xanchor="center",
+            x=0.5,
+            font=dict(color='#D4C4B5', size=12)
+        ),
+        paper_bgcolor='#332922',
+        font={'color': '#FAF5F0', 'size': 12},
         margin=dict(l=20, r=20, t=50, b=50)
     )
     return fig
 
 
-def create_trend_chart(dates, values, title, color='#667eea'):
+def create_trend_chart(dates, values, title, color='#F97316'):
     """Create interactive trend line chart"""
+    r = int(color[1:3], 16)
+    g = int(color[3:5], 16)
+    b = int(color[5:7], 16)
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=dates,
         y=values,
         mode='lines+markers',
         name=title,
-        line=dict(color=color, width=3),
-        marker=dict(size=8, color=color),
+        line=dict(color=color, width=3, shape='spline'),
+        marker=dict(size=10, color=color, line=dict(color='#332922', width=2)),
         fill='tozeroy',
-        fillcolor=f'rgba({int(color[1:3], 16)}, {int(color[3:5], 16)}, {int(color[5:7], 16)}, 0.2)'
+        fillcolor=f'rgba({r}, {g}, {b}, 0.2)'
     ))
     fig.update_layout(
         height=300,
         showlegend=False,
-        paper_bgcolor='#1a1a2e',
-        plot_bgcolor='#16213e',
-        font={'color': '#ffffff'},
-        xaxis=dict(showgrid=True, gridcolor='#2d2d44'),
-        yaxis=dict(showgrid=True, gridcolor='#2d2d44'),
+        paper_bgcolor='#332922',
+        plot_bgcolor='#2E251D',
+        font={'color': '#FAF5F0'},
+        xaxis=dict(
+            showgrid=True,
+            gridcolor='#4A3C31',
+            linecolor='#4A3C31',
+            tickfont=dict(color='#D4C4B5')
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor='#4A3C31',
+            linecolor='#4A3C31',
+            tickfont=dict(color='#D4C4B5')
+        ),
         margin=dict(l=40, r=40, t=40, b=40)
     )
     return fig
@@ -413,7 +614,7 @@ def create_trend_chart(dates, values, title, color='#667eea'):
 
 def create_risk_bar_chart(diseases, probabilities):
     """Create horizontal bar chart for disease risks"""
-    colors = ['#ef4444' if p >= 60 else '#f59e0b' if p >= 40 else '#00d9a5' for p in probabilities]
+    colors = ['#EF4444' if p >= 60 else '#F97316' if p >= 40 else '#22C55E' for p in probabilities]
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -421,19 +622,30 @@ def create_risk_bar_chart(diseases, probabilities):
         x=probabilities,
         orientation='h',
         marker_color=colors,
+        marker_line=dict(color='#332922', width=2),
         text=[f'{p:.1f}%' for p in probabilities],
         textposition='outside',
+        textfont=dict(color='#FAF5F0', size=13, family='Plus Jakarta Sans'),
         hovertemplate='<b>%{y}</b><br>Risk: %{x:.1f}%<extra></extra>'
     ))
     fig.update_layout(
         height=400,
         showlegend=False,
-        paper_bgcolor='#1a1a2e',
-        plot_bgcolor='#16213e',
-        font={'color': '#ffffff', 'size': 12},
-        xaxis=dict(range=[0, 100], showgrid=True, gridcolor='#2d2d44', title='Risk Probability (%)'),
-        yaxis=dict(showgrid=False, title='Disease'),
-        margin=dict(l=150, r=40, t=40, b=40)
+        paper_bgcolor='#332922',
+        plot_bgcolor='#2E251D',
+        font={'color': '#FAF5F0', 'size': 12},
+        xaxis=dict(
+            range=[0, 100],
+            showgrid=True,
+            gridcolor='#4A3C31',
+            tickfont=dict(color='#D4C4B5'),
+            title=dict(text='Risk Probability (%)', font=dict(color='#D4C4B5'))
+        ),
+        yaxis=dict(
+            showgrid=False,
+            tickfont=dict(color='#FAF5F0', size=13)
+        ),
+        margin=dict(l=150, r=60, t=40, b=50)
     )
     return fig
 
@@ -442,11 +654,11 @@ def create_radar_chart(labels, values, title):
     """Create radar chart for multi-dimensional analysis"""
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
-        r=values,
-        theta=labels,
+        r=values + [values[0]],
+        theta=labels + [labels[0]],
         fill='toself',
-        line=dict(color='#667eea', width=3),
-        fillcolor='rgba(102, 126, 234, 0.3)',
+        line=dict(color='#F97316', width=3),
+        fillcolor='rgba(249, 115, 22, 0.25)',
         name=title
     ))
     fig.update_layout(
@@ -454,14 +666,23 @@ def create_radar_chart(labels, values, title):
             radialaxis=dict(
                 visible=True,
                 range=[0, 100],
-                tickcolor='#ffffff',
-                gridcolor='#2d2d44'
-            )
+                tickcolor='#D4C4B5',
+                gridcolor='#4A3C31',
+                linecolor='#4A3C31',
+                tickfont=dict(color='#D4C4B5')
+            ),
+            angularaxis=dict(
+                tickcolor='#D4C4B5',
+                gridcolor='#4A3C31',
+                linecolor='#4A3C31',
+                tickfont=dict(color='#FAF5F0')
+            ),
+            bgcolor='#2E251D'
         ),
         showlegend=False,
         height=350,
-        paper_bgcolor='#1a1a2e',
-        font={'color': '#ffffff'}
+        paper_bgcolor='#332922',
+        font={'color': '#FAF5F0'}
     )
     return fig
 
@@ -475,7 +696,7 @@ apply_modern_styles()
 # 5. SIDEBAR NAVIGATION
 # ============================================================
 with st.sidebar:
-    st.markdown('<p class="sidebar-brand">🔬 NutriScanner Pro</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sidebar-brand">🥗 NutriScanner Pro</p>', unsafe_allow_html=True)
 
     st.write("")
     page = st.radio(
@@ -487,14 +708,13 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # User info card
     st.markdown("""
     <div class="metric-card" style="padding: 20px;">
         <div style="display: flex; align-items: center; gap: 15px;">
-            <div style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; font-size: 24px;">👤</div>
+            <div style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #F97316 0%, #C2410C 100%); display: flex; align-items: center; justify-content: center; font-size: 24px; color: white;">👤</div>
             <div>
-                <div style="font-weight: 600; color: white;">Alex Rivers</div>
-                <div style="font-size: 0.8rem; color: #a0a0b0;">Premium Member</div>
+                <div style="font-weight: 600; color: #FAF5F0;">Alex Rivers</div>
+                <div style="font-size: 0.8rem; color: #A89585;">Premium Member</div>
             </div>
         </div>
     </div>
@@ -508,17 +728,14 @@ with st.sidebar:
 # 6. PAGE ROUTING
 # ============================================================
 
-# === DASHBOARD ===
 if page == "🏠 Dashboard":
-    # Hero Banner
     st.markdown("""
     <div class="hero-banner">
-        <h1>Your Health Intelligence Hub</h1>
+        <h1>🍊 Your Health Intelligence Hub 🌿</h1>
         <p>AI-powered nutrition analysis, disease risk prediction, and personalized health insights</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # Key Metrics
     st.subheader("Today's Overview")
     m1, m2, m3, m4, m5 = st.columns(5)
 
@@ -569,14 +786,13 @@ if page == "🏠 Dashboard":
 
     st.write("")
 
-    # Main Charts Row
     col1, col2 = st.columns([2, 1])
 
     with col1:
         st.markdown("### 📈 Weekly Nutrition Trends")
         dates = [(datetime.now() - timedelta(days=i)).strftime('%b %d') for i in range(6)][::-1]
         calories = [1950, 2100, 1880, 2250, 2180, 2340]
-        fig_trend = create_trend_chart(dates, calories, "Calories", '#667eea')
+        fig_trend = create_trend_chart(dates, calories, "Calories", '#F97316')
         st.plotly_chart(fig_trend, use_container_width=True)
 
     with col2:
@@ -588,35 +804,27 @@ if page == "🏠 Dashboard":
         fig_pie = create_nutrition_pie_chart(macro_data)
         st.plotly_chart(fig_pie, use_container_width=True)
 
-    # Risk Overview
     st.markdown("### ⚠️ Health Risk Overview")
     diseases = ['Diabetes', 'Hypertension', 'Heart Disease', 'Obesity', 'Anemia', 'Kidney']
     risks = [47.5, 25.7, 50.8, 15.2, 5.4, 13.1]
     fig_risk = create_risk_bar_chart(diseases, risks)
     st.plotly_chart(fig_risk, use_container_width=True)
 
-    # Quick Actions
     st.markdown("### ⚡ Quick Actions")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        if st.button("📷 Scan Meal", use_container_width=True):
-            st.switch_page("pages/2_📷_AI_Food_Scanner.py")
+        st.button("📷 Scan Meal", use_container_width=True)
     with c2:
-        if st.button("🔍 Risk Assessment", use_container_width=True):
-            st.switch_page("pages/1_🔍_Health_Risk_Assessment.py")
+        st.button("🔍 Risk Assessment", use_container_width=True)
     with c3:
-        if st.button("📊 View Reports", use_container_width=True):
-            st.switch_page("pages/3_📊_Nutrition_Analytics.py")
+        st.button("📊 View Reports", use_container_width=True)
     with c4:
-        if st.button("👤 Update Profile", use_container_width=True):
-            st.switch_page("pages/4_👤_Profile_Settings.py")
+        st.button("👤 Update Profile", use_container_width=True)
 
-# === HEALTH RISK ASSESSMENT ===
 elif page == "🔍 Health Risk Assessment":
     st.title("🔍 AI Health Risk Assessment")
     st.markdown("Predict disease risks based on your nutritional profile and lifestyle")
 
-    # Input Form
     with st.expander("📝 Enter Your Health Data", expanded=True):
         col1, col2, col3 = st.columns(3)
 
@@ -642,7 +850,6 @@ elif page == "🔍 Health Risk Assessment":
         with st.spinner("AI is analyzing your health profile..."):
             time.sleep(2)
 
-            # Simulated predictions
             predictions = {
                 'Diabetes': 47.5,
                 'Hypertension': 25.7,
@@ -652,7 +859,6 @@ elif page == "🔍 Health Risk Assessment":
                 'Kidney Disease': 13.1
             }
 
-            # Risk Gauges
             st.subheader("Risk Assessment Results")
             g1, g2, g3 = st.columns(3)
             with g1:
@@ -664,13 +870,11 @@ elif page == "🔍 Health Risk Assessment":
                 st.plotly_chart(create_risk_gauge(predictions['Heart Disease'], "Heart Disease Risk"),
                                 use_container_width=True)
 
-            # Risk Bar Chart
             st.subheader("All Disease Risks")
             fig = create_risk_bar_chart(list(predictions.keys()), list(predictions.values()))
             st.plotly_chart(fig, use_container_width=True)
 
-            # Recommendations
-            st.subheader(" Personalized Recommendations")
+            st.subheader("🌿 Personalized Recommendations")
             if predictions['Diabetes'] > 40:
                 st.markdown(
                     '<div class="risk-medium">⚠️ <strong>Diabetes Prevention:</strong> Reduce added sugar intake, increase fiber, and maintain regular physical activity</div>',
@@ -684,12 +888,10 @@ elif page == "🔍 Health Risk Assessment":
                     '<div class="risk-medium">⚠️ <strong>Blood Pressure:</strong> Reduce sodium, increase potassium-rich foods, and stay hydrated</div>',
                     unsafe_allow_html=True)
 
-# === NUTRITION ANALYTICS ===
 elif page == "📊 Nutrition Analytics":
     st.title("📊 Advanced Nutrition Analytics")
     st.markdown("Deep dive into your nutritional patterns and deficiencies")
 
-    # Tabs
     tab1, tab2, tab3, tab4 = st.tabs(["🥗 Macros", "💊 Micronutrients", "📈 Trends", "⚠️ Deficiencies"])
 
     with tab1:
@@ -723,26 +925,31 @@ elif page == "📊 Nutrition Analytics":
 
         fig = go.Figure()
         fig.add_trace(go.Bar(
-            name='Intake',
+            name='Your Intake',
             y=micro_data['Nutrient'],
             x=micro_data['Intake'],
             orientation='h',
-            marker_color='#667eea'
+            marker_color='#F97316',
+            marker_line=dict(color='#332922', width=2)
         ))
         fig.add_trace(go.Bar(
             name='Recommended',
             y=micro_data['Nutrient'],
             x=micro_data['Recommended'],
             orientation='h',
-            marker_color='#2d2d44'
+            marker_color='#22C55E',
+            marker_line=dict(color='#332922', width=2),
+            opacity=0.7
         ))
         fig.update_layout(
             barmode='group',
             height=400,
-            paper_bgcolor='#1a1a2e',
-            font={'color': '#ffffff'},
-            xaxis=dict(showgrid=True, gridcolor='#2d2d44'),
-            yaxis=dict(showgrid=False)
+            paper_bgcolor='#332922',
+            plot_bgcolor='#2E251D',
+            font={'color': '#FAF5F0'},
+            xaxis=dict(showgrid=True, gridcolor='#4A3C31', tickfont=dict(color='#D4C4B5')),
+            yaxis=dict(showgrid=False, tickfont=dict(color='#FAF5F0')),
+            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='center', x=0.5, font=dict(color='#D4C4B5'))
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -750,20 +957,19 @@ elif page == "📊 Nutrition Analytics":
         st.subheader("30-Day Nutrition Trends")
         dates = [(datetime.now() - timedelta(days=i)).strftime('%b %d') for i in range(29)][::-1]
 
-        tab3_1, tab3_2 = st.tabs(["Calories", "Macros"])
+        tab3_1, tab3_2 = st.tabs(["🔥 Calories", "💪 Macros"])
         with tab3_1:
             calories_trend = np.random.randint(1800, 2500, 30).tolist()
-            fig = create_trend_chart(dates, calories_trend, "Daily Calories", '#667eea')
+            fig = create_trend_chart(dates, calories_trend, "Daily Calories", '#F97316')
             st.plotly_chart(fig, use_container_width=True)
 
         with tab3_2:
             protein_trend = np.random.randint(70, 120, 30).tolist()
-            fig = create_trend_chart(dates, protein_trend, "Protein (g)", '#00d9a5')
+            fig = create_trend_chart(dates, protein_trend, "Protein (g)", '#22C55E')
             st.plotly_chart(fig, use_container_width=True)
 
     with tab4:
         st.subheader("Nutrient Deficiency Alerts")
-
         st.markdown(
             '<div class="risk-medium">⚠️ <strong>Vitamin D:</strong> Your intake (600 IU) is below recommended (800 IU). Consider sunlight exposure or supplementation</div>',
             unsafe_allow_html=True)
@@ -777,20 +983,17 @@ elif page == "📊 Nutrition Analytics":
             '<div class="risk-low">✅ <strong>Potassium:</strong> Excellent! Your intake supports healthy blood pressure</div>',
             unsafe_allow_html=True)
 
-# === TRENDS & INSIGHTS ===
 elif page == "📈 Trends & Insights":
     st.title("📈 Trends & AI Insights")
     st.markdown("Long-term health patterns and predictive analytics")
 
-    # Time Range Selector
     col1, col2 = st.columns([3, 1])
     with col1:
-        time_range = st.slider("Select Time Range", 7, 90, 30, label_visibility="collapsed")
+        time_range = st.slider("Select Time Range (Days)", 7, 90, 30)
     with col2:
         if st.button("🔄 Refresh Data", use_container_width=True):
             st.rerun()
 
-    # Key Insights
     st.subheader("🧠 AI-Generated Insights")
     insights = [
         ("📈 Calorie Trend", "Your average calorie intake increased by 8% over the past 2 weeks", "positive"),
@@ -805,7 +1008,6 @@ elif page == "📈 Trends & Insights":
         else:
             st.markdown(f'<div class="risk-medium"><strong>{title}:</strong> {desc}</div>', unsafe_allow_html=True)
 
-    # Correlation Heatmap
     st.subheader("🔗 Nutrient Correlation Analysis")
     corr_data = pd.DataFrame(
         np.random.rand(6, 6),
@@ -815,18 +1017,18 @@ elif page == "📈 Trends & Insights":
 
     fig_corr = px.imshow(
         corr_data,
-        color_continuous_scale='RdBu_r',
+        color_continuous_scale=[[0, '#15803D'], [0.5, '#4A3C31'], [1, '#EA580C']],
         aspect='auto',
         text_auto='.2f'
     )
     fig_corr.update_layout(
         height=500,
-        paper_bgcolor='#1a1a2e',
-        font={'color': '#ffffff'}
+        paper_bgcolor='#332922',
+        font={'color': '#FAF5F0'}
     )
+    fig_corr.update_traces(textfont=dict(color='#FAF5F0'))
     st.plotly_chart(fig_corr, use_container_width=True)
 
-# === PROFILE SETTINGS ===
 elif page == "👤 Profile Settings":
     st.title("👤 Profile Settings")
     st.markdown("Manage your health profile and preferences")
@@ -870,7 +1072,7 @@ elif page == "👤 Profile Settings":
 # ============================================================
 st.markdown("""
 <div class="footer">
-    <p>🔬 NutriScanner Pro v4.0.0 | AI-Powered Health Intelligence Platform</p>
-    <p>© 2026 NutriScanner Inc. | <a href="#" style="color: #667eea;">Privacy Policy</a> | <a href="#" style="color: #667eea;">Terms of Service</a></p>
+    <p>🥗 NutriScanner Pro v4.0.0 | AI-Powered Health Intelligence Platform</p>
+    <p>© 2026 NutriScanner Inc. | <a href="#">Privacy Policy</a> | <a href="#">Terms of Service</a></p>
 </div>
 """, unsafe_allow_html=True)
