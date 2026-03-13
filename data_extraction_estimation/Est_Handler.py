@@ -13,13 +13,3 @@ def Est_Handler(data: str, iType: str) -> tuple | None:
         pass
         # return Label_Extraction.get_label_info(data)
     return None
-
-
-if __name__ == "__main__":
-    tests = (
-        "Yogurt, plain, low fat",
-        "Fried Rice"
-    )
-
-    for i, test in enumerate(tests, 1):
-        print(f"check {i}: {test}:\t\t{Est_Handler(test, 'image')}")

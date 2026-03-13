@@ -193,7 +193,8 @@ def _append_to_frequented(values: tuple) -> None:
                 "description", "calories", "proteins", "fats", "carbohydrates",
                 "sodium", "Magnesium", "calcium", "iron", "zinc",
                 "vitamin A", "vitamin C", "vitamin D", "vitamin E", "vitamin K",
-                "vitamin B1", "vitamin B2", "vitamin B3", "vitamin B6", "vitamin B12"
+                "vitamin B1", "vitamin B2", "vitamin B3", "vitamin B6", "vitamin B12",
+                "SFA", "MUFA", "PUFA"
             ])
 
         writer.writerow(list(values))
@@ -208,13 +209,11 @@ def _append_to_frequented(values: tuple) -> None:
     header = rows[0]
     data_rows = rows[1:]
 
-    # Build dict keyed by description (row[0]), later rows overwrite earlier ones
     seen = {}
     for row in data_rows:
         if row:
-            seen[row[0].strip().lower()] = row  # Last occurrence wins
+            seen[row[0].strip().lower()] = row
 
-    # Write back: header + deduplicated rows
     with open(freq_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(header)
