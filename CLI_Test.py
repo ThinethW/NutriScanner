@@ -1,6 +1,6 @@
 import model1
 from data_extraction_estimation import Est_Handler, Est_Handler, Label_Extraction
-import nutritional_analysis.meal_analyzer as a
+import nutritional_analysis.analyzer_refac as a
 
 
 def mo2Parse():
@@ -45,8 +45,7 @@ def CLI_main():
           f"operation 2: {o2}"
           f"\n=======================\n\n\n")
 
-    m3 = a.analyzer.SriLankanNutritionalAnalyzer
-    o3 = m3.compute_health_indexes(mo2Parse())
+    o3 = a.compute_health_indexes(mo2Parse())
 
     print(f"\n\n\n=======================\n"
           f"operation 3: {o3}"
