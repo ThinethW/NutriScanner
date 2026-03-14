@@ -19,7 +19,7 @@ def mo2Parse():
 
 
 def CLI_main():
-    image = r"image1.jpg"
+    image = r"image4.jpg"
 
     model_paths = [
         r"srilankan_food_model_v21_74.5.pt",
@@ -35,21 +35,24 @@ def CLI_main():
           f"operation 1: {o1}"
           f"\n=======================\n\n\n")
 
-    o2 = []
-    for i in o1:
-        print(f"\n----  now checking {i}")
-        o2i = Est_Handler.Est_Handler(i, "image")
-        o2.append(o2i)
+    if o1 != []:
+        o2 = []
+        for i in o1:
+            print(f"\n----  now checking {i}")
+            o2i = Est_Handler.Est_Handler(i, "image")
+            o2.append(o2i)
 
-    print(f"\n\n\n=======================\n"
-          f"operation 2: {o2}"
-          f"\n=======================\n\n\n")
+        print(f"\n\n\n=======================\n"
+              f"operation 2: {o2}"
+              f"\n=======================\n\n\n")
 
-    o3 = a.compute_health_indexes(mo2Parse())
+        o3 = a.compute_health_indexes(mo2Parse())
 
-    print(f"\n\n\n=======================\n"
-          f"operation 3: {o3}"
-          f"\n=======================\n\n\n")
+        print(f"\n\n\n=======================\n"
+              f"operation 3: {o3}"
+              f"\n=======================\n\n\n")
+    else:
+        print("ERROR: no food items found")
 
 if __name__ == "__main__":
     CLI_main()
