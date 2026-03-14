@@ -19,7 +19,7 @@ def mo2Parse():
 
 
 def CLI_main():
-    image = r"image4.jpg"
+    image = r"image1.jpg"
 
     model_paths = [
         r"srilankan_food_model_v21_74.5.pt",

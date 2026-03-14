@@ -1,0 +1,200 @@
+Rice
+Bread
+Noodles
+Pasta
+Pizza
+Burger
+Sushi
+Tacos
+Burrito
+Ramen
+Pho
+Pad Thai
+Fried Rice
+Paella
+Biryani
+Lasagna
+Risotto
+Shawarma
+Kebab
+Falafel
+Hummus
+Dumplings
+Gyoza
+Spring Rolls
+Steak
+BBQ Ribs
+Roast Chicken
+Fried Chicken
+Chicken Curry
+Beef Stew
+Fish and Chips
+Grilled Salmon
+Tuna Sashimi
+Lobster
+Shrimp Scampi
+Crab Cakes
+Lamb Chops
+Meatballs
+Sausages
+Caesar Salad
+Greek Salad
+Coleslaw
+Potato Salad
+Caprese Salad
+Ratatouille
+Stir Fried Vegetables
+Kimchi
+Sauerkraut
+Pickles
+Tomato Soup
+Chicken Noodle Soup
+Miso Soup
+Hot and Sour Soup
+Lentil Soup
+Pumpkin Soup
+Clam Chowder
+Borscht
+French Onion Soup
+Minestrone
+Baguette
+Naan
+Pita Bread
+Tortilla
+Flatbread
+Focaccia
+Bagel
+Brioche
+Croissant
+Pretzel
+Milk
+Cheese
+Butter
+Yogurt
+Cream
+Ice Cream
+Gelato
+Custard
+Paneer
+Sour Cream
+Apple
+Banana
+Mango
+Orange
+Pineapple
+Papaya
+Watermelon
+Grapes
+Strawberry
+Blueberry
+Kiwi
+Peach
+Pear
+Plum
+Pomegranate
+Coconut
+Dragon Fruit
+Guava
+Lychee
+Avocado
+Potato
+Tomato
+Onion
+Garlic
+Carrot
+Broccoli
+Cabbage
+Cauliflower
+Spinach
+Eggplant
+Zucchini
+Pumpkin
+Corn
+Peas
+Green Beans
+Cake
+Chocolate Cake
+Cheesecake
+Brownies
+Cupcakes
+Donuts
+Pancakes
+Waffles
+Crepes
+Tiramisu
+Pudding
+Flan
+Macarons
+Baklava
+Churros
+Chips
+Popcorn
+Nachos
+Crackers
+Pretzel Sticks
+Granola Bars
+Trail Mix
+Rice Cakes
+Cheese Balls
+Onion Rings
+Club Sandwich
+Grilled Cheese
+BLT Sandwich
+Submarine Sandwich
+Panini
+Omelette
+Scrambled Eggs
+Boiled Eggs
+French Toast
+Breakfast Burrito
+Cereal
+Porridge
+Muesli
+Hash Browns
+Sausage and Eggs
+Hot Dog
+Corn Dog
+Arepa
+Empanada
+Takoyaki
+Okonomiyaki
+Satay
+Samosa
+Pakora
+Chocolate
+Caramel
+Fudge
+Toffee
+Jelly Beans
+Gummy Bears
+Marshmallows
+Lollipop
+Cotton Candy
+Nougat
+Tofu
+Tempeh
+Seaweed
+Edamame
+Goulash
+Pierogi
+Currywurst
+Poutine
+Jambalaya
+Gumbo
+Bibimbap
+Katsu Curry
+Mapo Tofu
+Laksa
+Tom Yum
+Adobo
+Rendang
+Shakshuka
+Fajitas
+Quesadilla
+Enchiladas
+Chili Con Carne
+Shepherds Pie
+Stuffed Peppers
+Stuffed Cabbage
+Gnocchi
+Spaghetti
