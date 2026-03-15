@@ -1,50 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-Nutrition Label Parser - v3  (handles real PaddleOCR output)
-=============================================================
+Nutrition Label Parser - v4
+============================
+Handles all Sri Lankan product label variations:
 
-Real-world PaddleOCR output from Sri Lankan product labels falls into
-two structural modes:
+  Layout modes:
+    inline   – values on same line as nutrient name
+    stacked  – each value on its own line below the name
+    single   – only one column (Per 100g/ml, no serving)
 
-  MODE A – "inline" (values on the SAME line as the nutrient name):
-      Total Carbohydrate  12.64 g      22.75 g
-      Protein             2.18 g       3.92 g
+  Column order:
+    100_first  – Per 100g  | Per Serving
+    srv_first  – Per Serving | Per 100g
+    single     – only one column
 
-  MODE B – "stacked" (each value on its OWN line, typical for Kandos etc.):
-      [06] Energy
-      [07] 250.3           ← col-1 value
-      [08] 2275.2kJ        ← col-2 value
-      [09] 59.9 kcal       ← col-1 kcal
-      [10] 545.2           ← col-2 kcal
-      [11] Protein
-      [12] 0.8g
-      [13] 7.7g
-
-  In Mode B, column-header lines are ALSO stacked:
-      [04] per'Serving
-      [05] per 100g
-
-  The parser auto-detects both modes.
-
-Column order detection
------------------------
-  - If both "per … serv" and "per 100" appear on the SAME line  → inline header
-  - If they appear on CONSECUTIVE lines                          → stacked header
-    · whichever appears FIRST is column-1
-
-Output
-------
-  Every nutrient produces TWO canonical keys:
-    <nutrient>_per_serving_*   (e.g.  protein_per_serving_g)
-    <nutrient>_per_100g / <nutrient>_mg   (e.g.  protein_g,  sodium_mg)
-
-  The health-scoring pipeline in analyzer.py uses the per-100g values.
-  The Streamlit display uses the per-serving values.
+  Special cases:
+    3-column labels  (Per 100g | Per Serving | %RDA) → ignore 3rd column
+    Two-table labels (Thai/foreign labels with 2 tables) → use English table
+    <0.01g notation  → treated as 0.0
+    Sodium in mg OR g → auto-detected, convert if in grams
+    Sub-rows (of which sugar, soluble fiber, naturally occurring) → skip correctly
 """
 
 import re
 from typing import Dict, List, Optional, Tuple
-
 
 # ---------------------------------------------------------------------------
 # Canonical output field names
@@ -80,14 +59,10 @@ FIELD_IRON_100        = "iron_mg"
 FIELD_SERVING_SIZE    = "serving_size"
 FIELD_SERVING_UNIT    = "serving_unit"
 
-
 # ---------------------------------------------------------------------------
-# Nutrient keyword → (field_100g, field_per_serving, unit)
-# Order matters: specific multi-word keywords MUST come before generic ones
-# (e.g. "saturated fat" before "fat", "total carbohydrate" before "carbohydrate")
+# Nutrient map — specific keywords BEFORE generic ones
 # ---------------------------------------------------------------------------
 NUTRIENT_MAP: List[Tuple] = [
-    # keywords                          field_100g          field_serving       unit
     (["protein"],                       FIELD_PROTEIN_100,  FIELD_PROTEIN_SRV,  "g"),
     (["total carbohydrate",
       "carbohydrates-total",
@@ -95,6 +70,7 @@ NUTRIENT_MAP: List[Tuple] = [
       "carbohydrate"],                  FIELD_CARBS_100,    FIELD_CARBS_SRV,    "g"),
     (["dietary fibre",
       "dietary fiber",
+      "total dietary fiber",
       "total fiber",
       "fibre"],                         FIELD_FIBER_100,    FIELD_FIBER_SRV,    "g"),
     (["total sugar", "sugar"],          FIELD_SUGAR_100,    FIELD_SUGAR_SRV,    "g"),
@@ -105,17 +81,31 @@ NUTRIENT_MAP: List[Tuple] = [
     (["polyunsaturated", "pufa"],       FIELD_PUFA_100,     FIELD_PUFA_SRV,     "g"),
     (["trans fatty acid",
       "trans-fatty", "trans fat"],      FIELD_TRANS_100,    FIELD_TRANS_SRV,    "g"),
-    # fat-total / total fat AFTER all fat sub-types
     (["fat-total", "total fat",
+      "total milk fat",
       "fat (total)"],                   FIELD_FAT_100,      FIELD_FAT_SRV,      "g"),
     (["cholesterol"],                   FIELD_CHOLESTEROL_100, FIELD_CHOLESTEROL_SRV, "mg"),
-    (["sodium"],                        FIELD_SODIUM_100,   FIELD_SODIUM_SRV,   "mg"),  # special
+    (["sodium"],                        FIELD_SODIUM_100,   FIELD_SODIUM_SRV,   "mg"),
     (["calcium"],                       FIELD_CALCIUM_100,  None,               "mg"),
     (["iron"],                          FIELD_IRON_100,     None,               "mg"),
 ]
 
-# Keywords that unambiguously start a NEW nutrient row.
-# Used by Mode-B value harvesting to know when to stop collecting.
+# Sub-rows to SKIP — these are indented child rows under a parent nutrient.
+# If a line contains any of these AND comes after the parent, skip it entirely.
+# Sub-rows to SKIP — lines that are child/sub items with no nutritional map entry.
+# "of which saturated" is NOT here because saturated fat IS a mapped nutrient.
+SUBROW_SKIP_KEYWORDS = [
+    "of which total sugar",
+    "of which added sugar",
+    "naturally occurring", "naturally occuring",
+    "added sugar", "added sugars",
+    "soluble dietary fiber", "soluble fiber", "soluble fibre",
+    "insoluble dietary fiber", "insoluble fiber", "insoluble fibre",
+    "% rda", "%rda", "% rai", "% thai rdi",
+    "salt",
+]
+
+# Lines that start a new nutrient (used to stop context scanning)
 NEW_ROW_KEYWORDS = [
     "protein", "carbohydrate", "fiber", "fibre", "sugar",
     "fat", "cholesterol", "sodium", "calcium", "iron", "zinc",
@@ -124,112 +114,238 @@ NEW_ROW_KEYWORDS = [
 ]
 
 
-# ===========================================================================
 class NutritionParser:
-    """
-    Parse PaddleOCR output from nutrition labels into clean dicts.
-
-    Usage
-    -----
-        parser = NutritionParser()
-        data   = parser.parse(ocr_text)   # returns dict of floats
-        ok, missing = parser.validate(data)
-    """
 
     # -----------------------------------------------------------------------
     # Public API
     # -----------------------------------------------------------------------
 
     def parse(self, ocr_text: str) -> Dict:
-        """Convert raw OCR text → nutrition dict."""
         lines = self._clean_lines(ocr_text)
         self._debug_print_lines(lines)
 
         result: Dict = {}
 
-        # 1. Serving size
+        # Step 1 — if two tables present (Thai/foreign labels), isolate English one
+        lines = self._isolate_english_table(lines)
+
+        # Step 2 — serving size
         self._extract_serving_size(lines, result)
 
-        # 2. Detect layout mode + column order
-        col_order = self._detect_column_order(lines)
+        # Step 3 — detect column count, layout mode, column order
+        col_count = self._detect_column_count(lines)
+        col_order = self._detect_column_order(lines, col_count)
         mode      = self._detect_layout_mode(lines)
+
         print(f"  Layout mode    : {mode}")
+        print(f"  Column count   : {col_count}")
         print(f"  Column order   : {col_order}\n")
 
-        # 3. Energy (special dual kJ/kcal handling)
+        # Step 4 — energy
         if mode == "stacked":
             self._extract_energy_stacked(lines, col_order, result)
         else:
-            self._extract_energy_inline(lines, col_order, result)
+            self._extract_energy_inline(lines, col_order, result, col_count)
 
-        # 4. All other nutrients
+        # Step 5 — all other nutrients
         if mode == "stacked":
             self._extract_nutrients_stacked(lines, col_order, result)
         else:
-            self._extract_nutrients_inline(lines, col_order, result)
+            self._extract_nutrients_inline(lines, col_order, result, col_count)
+
+        # Post-parse sanity check: if serving < 100g but per_100g values look like
+        # per_serving values (i.e. 100g value < serving value), swap column assignments.
+        result = self._verify_and_fix_column_order(result)
 
         self._debug_print_result(result)
         return result
 
+    def _verify_and_fix_column_order(self, result: Dict) -> Dict:
+        """
+        Sanity check: for products with serving_size < 100g,
+        the per_100g nutrient value should always be LARGER than per_serving.
+        If not (e.g. protein_g=1.52 but protein_per_serving_g=7.6), the column
+        order was misdetected — swap all paired values.
+        """
+        serving = result.get(FIELD_SERVING_SIZE, 100.0)
+        serving_unit = result.get(FIELD_SERVING_UNIT, "g")
+
+        # Only check when serving is clearly smaller than 100g/ml
+        if serving >= 100.0:
+            return result
+
+        # Check 2-3 nutrients for the swap signal
+        swap_votes = 0
+        check_pairs = [
+            (FIELD_PROTEIN_100,  FIELD_PROTEIN_SRV),
+            (FIELD_CARBS_100,    FIELD_CARBS_SRV),
+            (FIELD_ENERGY_KCAL_100, FIELD_ENERGY_KCAL_SRV),
+        ]
+        for f100, fsrv in check_pairs:
+            v100 = result.get(f100)
+            vsrv = result.get(fsrv)
+            if v100 is not None and vsrv is not None and vsrv > 0:
+                if v100 < vsrv:   # 100g value is smaller than serving value → wrong!
+                    swap_votes += 1
+
+        # Energy kcal is the single most reliable swap signal:
+        # Per-100g kcal is ALWAYS higher than per-serving kcal when serving < 100g.
+        # If energy_kcal_per_100g < energy_kcal_per_serving → definitely swapped.
+        e100 = result.get(FIELD_ENERGY_KCAL_100)
+        esrv = result.get(FIELD_ENERGY_KCAL_SRV)
+        energy_swapped = (e100 is not None and esrv is not None and e100 < esrv)
+
+        # Trigger swap if: energy alone signals it, OR 2+ other nutrients signal it
+        if not energy_swapped and swap_votes < 2:
+            return result  # looks correct
+
+        if energy_swapped:
+            print(f"  ⚠ Energy kcal swapped ({e100} < {esrv}) — swapping all paired values")
+
+        # All _per_serving_ ↔ _per_100g_ swaps
+        SWAP_PAIRS = [
+            (FIELD_ENERGY_KCAL_100, FIELD_ENERGY_KCAL_SRV),
+            (FIELD_ENERGY_KJ_100,   FIELD_ENERGY_KJ_SRV),
+            (FIELD_PROTEIN_100,     FIELD_PROTEIN_SRV),
+            (FIELD_CARBS_100,       FIELD_CARBS_SRV),
+            (FIELD_SUGAR_100,       FIELD_SUGAR_SRV),
+            (FIELD_FIBER_100,       FIELD_FIBER_SRV),
+            (FIELD_FAT_100,         FIELD_FAT_SRV),
+            (FIELD_SAT_FAT_100,     FIELD_SAT_FAT_SRV),
+            (FIELD_MUFA_100,        FIELD_MUFA_SRV),
+            (FIELD_PUFA_100,        FIELD_PUFA_SRV),
+            (FIELD_TRANS_100,       FIELD_TRANS_SRV),
+            (FIELD_CHOLESTEROL_100, FIELD_CHOLESTEROL_SRV),
+            (FIELD_SODIUM_100,      FIELD_SODIUM_SRV),
+        ]
+        for f100, fsrv in SWAP_PAIRS:
+            v100 = result.get(f100)
+            vsrv = result.get(fsrv)
+            if v100 is not None and vsrv is not None:
+                result[f100] = vsrv
+                result[fsrv] = v100
+
+        return result
+
     def validate(self, data: Dict) -> Tuple[bool, List[str]]:
-        """Return (is_valid, missing_required_fields)."""
         required = [FIELD_ENERGY_KCAL_100, FIELD_PROTEIN_100]
         missing  = [f for f in required if f not in data]
         return (len(missing) == 0, missing)
 
     # -----------------------------------------------------------------------
-    # Debug helpers
+    # Two-table isolation (Thai labels have Thai table + English table)
     # -----------------------------------------------------------------------
 
-    @staticmethod
-    def _debug_print_lines(lines: List[str]) -> None:
-        print("\n" + "=" * 60)
-        print("OCR TEXT (cleaned lines):")
-        print("=" * 60)
-        for i, l in enumerate(lines):
-            print(f"  [{i:02d}] {l}")
-        print("=" * 60 + "\n")
+    def _isolate_english_table(self, lines: List[str]) -> List[str]:
+        """
+        If two nutrition tables exist, keep only the LAST / English one.
+        Detection: count how many lines contain 'nutrition' or 'energy'.
+        If there are 2+ 'energy' lines → two tables present → split at 2nd 'nutrition'.
+        """
+        nutrition_indices = [i for i, l in enumerate(lines)
+                             if re.search(r"\bnutrition\b", l.lower())]
+        energy_indices    = [i for i, l in enumerate(lines)
+                             if re.search(r"\benergy\b", l.lower())]
 
-    @staticmethod
-    def _debug_print_result(result: Dict) -> None:
-        print("\n" + "=" * 60)
-        print("PARSED NUTRITION DATA:")
-        print("=" * 60)
-        for k, v in result.items():
-            print(f"  {k}: {v}")
-        print("=" * 60 + "\n")
+        # Two tables if we see 2+ nutrition headers OR 2+ energy rows
+        if len(nutrition_indices) >= 2:
+            print(f"  ⚠ Two tables detected — using table starting at line {nutrition_indices[-1]}")
+            return lines[nutrition_indices[-1]:]
+        if len(energy_indices) >= 2:
+            # Split at the second energy occurrence
+            split = energy_indices[1]
+            # Back up to find any preceding header lines
+            for i in range(split - 1, max(split - 5, -1), -1):
+                if re.search(r"nutrition|serving|composition", lines[i].lower()):
+                    split = i
+                    break
+            print(f"  ⚠ Two energy rows detected — using section from line {split}")
+            return lines[split:]
+
+        return lines
 
     # -----------------------------------------------------------------------
-    # Text utilities
+    # Column count detection
     # -----------------------------------------------------------------------
 
-    @staticmethod
-    def _clean_lines(text: str) -> List[str]:
-        """Strip whitespace, remove blank lines. Keep original case for numbers."""
-        return [l.strip() for l in text.split("\n") if l.strip()]
+    def _detect_column_count(self, lines: List[str]) -> int:
+        """
+        Returns 1, 2, or 3.
+        3-column: header line has 'per 100' + 'per serv' + ('%' or 'rda' or 'rdi')
+        1-column: no 'per serv' found anywhere
+        2-column: default
+        """
+        for line in lines:
+            lo = line.lower()
+            has_100 = bool(re.search(r"per\s*100|100\s*m[lg]", lo))
+            has_srv = bool(re.search(r"per\s*serv|per serve\b", lo))
+            has_pct = bool(re.search(r"%\s*r[da]|rda|rdi|%\s*per", lo))
+            if has_100 and has_srv and has_pct:
+                return 3
+            if has_100 and has_srv:
+                return 2
 
-    @staticmethod
-    def _extract_numbers(text: str) -> List[float]:
-        """Extract all numeric values from a string."""
-        return [float(m) for m in re.findall(r"\d+\.?\d*", text)]
+        # Check stacked headers too
+        has_srv_anywhere = any(
+            re.search(r"per.{0,2}serv|per serve\b", l.lower()) for l in lines
+        )
+        if not has_srv_anywhere:
+            return 1
+        return 2
 
-    @staticmethod
-    def _is_value_line(line: str) -> bool:
-        """Return True if line looks like a pure value line (number + optional unit)."""
-        lo = line.lower().strip()
-        # Contains a digit and no multi-word nutrient keywords
-        if not re.search(r"\d", lo):
-            return False
-        for kw in NEW_ROW_KEYWORDS:
-            if kw in lo:
-                return False
-        return True
+    # -----------------------------------------------------------------------
+    # Layout mode detection
+    # -----------------------------------------------------------------------
 
-    @staticmethod
-    def _line_has_units(line: str) -> bool:
-        """Return True if line contains an explicit unit tag (g, mg, kcal, kj)."""
-        lo = line.lower()
-        return bool(re.search(r"\d\s*(g|mg|kcal|kj)\b", lo))
+    def _detect_layout_mode(self, lines: List[str]) -> str:
+        for i, line in enumerate(lines):
+            lo = line.lower()
+            for kw in ["protein", "carbohydrate", "total fat", "fat-total", "sodium"]:
+                if kw in lo:
+                    nums = self._extract_numbers(line)
+                    if len(nums) >= 1:
+                        return "inline"
+                    if i + 1 < len(lines):
+                        next_nums = self._extract_numbers(lines[i + 1])
+                        if next_nums:
+                            return "stacked"
+        return "inline"
+
+    # -----------------------------------------------------------------------
+    # Column order detection
+    # -----------------------------------------------------------------------
+
+    def _detect_column_order(self, lines: List[str], col_count: int) -> str:
+        if col_count == 1:
+            return "single"
+
+        re_100 = re.compile(r"per\s*100|100\s*m[lg]|100g|100ml")
+        re_srv = re.compile(r"per.{0,2}serv")
+
+        # Pass 1: inline header (both on same line)
+        for line in lines:
+            lo = line.lower()
+            if re_100.search(lo) and re_srv.search(lo):
+                pos_100 = lo.find("100")
+                pos_srv = re_srv.search(lo).start()
+                return "100_first" if pos_100 < pos_srv else "srv_first"
+
+        # Pass 2: stacked header (consecutive lines, no digits in line)
+        for i, line in enumerate(lines):
+            lo = line.lower()
+            is_header = bool(re_100.search(lo) or re_srv.search(lo))
+            if not is_header or re.search(r"\d", lo):
+                continue
+            if i + 1 < len(lines):
+                next_lo = lines[i + 1].lower()
+                next_has_100 = bool(re_100.search(next_lo))
+                next_has_srv = bool(re_srv.search(next_lo))
+                if re_srv.search(lo) and next_has_100:
+                    return "srv_first"
+                if re_100.search(lo) and next_has_srv:
+                    return "100_first"
+
+        return "100_first"
 
     # -----------------------------------------------------------------------
     # Serving size
@@ -238,8 +354,14 @@ class NutritionParser:
     def _extract_serving_size(self, lines: List[str], result: Dict) -> None:
         for i, line in enumerate(lines):
             if "serving size" in line.lower():
-                # Search current line + next line
-                search = line + (" " + lines[i + 1] if i + 1 < len(lines) else "")
+                # Include previous line — some OCR puts value BEFORE keyword
+                parts = []
+                if i > 0:
+                    parts.append(lines[i - 1])
+                parts.append(line)
+                if i + 1 < len(lines):
+                    parts.append(lines[i + 1])
+                search = " ".join(parts)
                 ml = re.search(r"(\d+(?:\.\d+)?)\s*ml", search, re.I)
                 g  = re.search(r"(\d+(?:\.\d+)?)\s*g\b", search, re.I)
                 if ml:
@@ -249,213 +371,124 @@ class NutritionParser:
                     result[FIELD_SERVING_SIZE] = float(g.group(1))
                     result[FIELD_SERVING_UNIT] = "g"
                 if FIELD_SERVING_SIZE in result:
-                    print(f"  ✓ Serving size : {result[FIELD_SERVING_SIZE]} "
-                          f"{result[FIELD_SERVING_UNIT]}")
+                    print(f"  ✓ Serving size : {result[FIELD_SERVING_SIZE]} {result[FIELD_SERVING_UNIT]}")
                 return
 
     # -----------------------------------------------------------------------
-    # Layout detection
-    # -----------------------------------------------------------------------
-
-    def _detect_layout_mode(self, lines: List[str]) -> str:
-        """
-        Detect whether values are on the same line as nutrient names (inline)
-        or on separate lines below them (stacked).
-
-        Heuristic: look at lines after the first recognisable nutrient keyword.
-        If the NEXT non-empty line is a pure value line → stacked.
-        If the nutrient line itself contains numbers   → inline.
-        """
-        for i, line in enumerate(lines):
-            lo = line.lower()
-            for kw in ["protein", "carbohydrate", "total fat", "fat-total", "sodium"]:
-                if kw in lo:
-                    # Check if this line itself has numbers
-                    nums_on_line = self._extract_numbers(line)
-                    if len(nums_on_line) >= 1:
-                        return "inline"
-                    # Check next line
-                    if i + 1 < len(lines):
-                        next_nums = self._extract_numbers(lines[i + 1])
-                        if next_nums:
-                            return "stacked"
-        return "inline"  # safe default
-
-    def _detect_column_order(self, lines: List[str]) -> str:
-        """
-        Determine which column comes first: Per-Serving or Per-100g.
-
-        Pass 1: scan for a line that contains BOTH '100' and 'serv' keywords
-                (inline header like 'Per 100ml    Per serving').
-        Pass 2: scan for two CONSECUTIVE pure-header lines
-                (stacked header like ['per Serving', 'per 100g']).
-
-        'Serving Size: 180ml' is NOT a column header and is excluded from pass 2.
-
-        Returns: 'srv_first' | '100_first'
-        """
-        re_100 = re.compile(r"per\s*100|100\s*m[lg]|100g|100ml")
-        re_srv = re.compile(r"per.{0,2}serv")   # handles per serv / per'serv / per Serv
-
-        # ── Pass 1: inline header (both keywords on same line) ────────────
-        for line in lines:
-            lo = line.lower()
-            if re_100.search(lo) and re_srv.search(lo):
-                pos_100 = lo.find("100")
-                pos_srv = lo.find("serv")
-                return "100_first" if pos_100 < pos_srv else "srv_first"
-
-        # ── Pass 2: stacked header (consecutive lines, each pure header) ──
-        for i, line in enumerate(lines):
-            lo = line.lower()
-            # Must look like a pure column-header line (starts with "per" or
-            # contains ONLY a column reference, not "serving size: 180ml")
-            is_header = bool(re_100.search(lo) or re_srv.search(lo))
-            if not is_header:
-                continue
-            # Skip lines that also contain a number (serving size lines)
-            if re.search(r"\d", lo):
-                continue
-
-            if i + 1 < len(lines):
-                next_lo = lines[i + 1].lower()
-                next_has_100 = bool(re_100.search(next_lo))
-                next_has_srv = bool(re_srv.search(next_lo))
-
-                if re_srv.search(lo) and next_has_100:
-                    return "srv_first"
-                if re_100.search(lo) and next_has_srv:
-                    return "100_first"
-
-        return "100_first"  # safe default
-
-    # -----------------------------------------------------------------------
-    # Sodium unit detection helper
+    # Number extraction — handles <0.01 notation
     # -----------------------------------------------------------------------
 
     @staticmethod
+    def _extract_numbers(text: str) -> List[float]:
+        """
+        Extract numeric values. Handles:
+          <0.01  → 0.0
+          0.01   → 0.01
+          325kJ  → 325.0
+        """
+        # Replace <N with 0 first
+        text = re.sub(r"<\s*(\d+\.?\d*)", r"0", text)
+        return [float(m) for m in re.findall(r"\d+\.?\d*", text)]
+
+    @staticmethod
+    def _normalize_ocr_units(text: str) -> str:
+        """Fix common OCR misreads: kea/keal/kca/kcai → kcal"""
+        text = re.sub(r"\bk[ce][ae][al1iI]\b", "kcal", text, flags=re.I)
+        text = re.sub(r"\bkcai\b", "kcal", text, flags=re.I)
+        text = re.sub(r"\bkeal\b", "kcal", text, flags=re.I)
+        return text
+
+    @staticmethod
+    def _is_subrow(line: str) -> bool:
+        """Return True if this line is a sub-row that should be skipped."""
+        lo = line.lower()
+        return any(kw in lo for kw in SUBROW_SKIP_KEYWORDS)
+
+    @staticmethod
+    def _is_new_nutrient_row(line: str) -> bool:
+        lo = line.lower()
+        return any(kw in lo for kw in NEW_ROW_KEYWORDS)
+
+    @staticmethod
     def _sodium_needs_conversion(context_lines: List[str]) -> bool:
-        """
-        Return True if sodium values are in grams and need ×1000 conversion.
-        Decision: look for explicit 'mg' anywhere in the context window.
-        If 'mg' is present the values are already milligrams → no conversion.
-        If only 'g' or no unit → assume grams → convert.
-        """
         window = " ".join(context_lines).lower()
-        if "mg" in window:
-            return False   # already mg
-        return True        # assume g → multiply by 1000
+        return "mg" not in window  # if no 'mg' tag → values are in g
 
     # -----------------------------------------------------------------------
-    # INLINE mode – energy
+    # INLINE energy
     # -----------------------------------------------------------------------
 
-    def _extract_energy_inline(self, lines: List[str], col_order: str, result: Dict) -> None:
-        """
-        Handle energy rows where both values appear on the same line(s).
-        E.g.:
-            Energy    77.31 kcal    139.15 kcal
-        or  (kJ row + kcal row):
-            ENERGY    320.10 kJ     576.18 kJ
-                      76.50 kcal    137.70 kcal
-        """
+    def _extract_energy_inline(self, lines, col_order, result, col_count=2):
         for i, line in enumerate(lines):
             if not re.search(r"\benergy\b", line.lower()):
                 continue
-
-            window      = lines[i: min(i + 4, len(lines))]
+            # Collect lines for energy window — stop at next nutrient keyword
+            window = [lines[i]]
+            for wi in range(i + 1, min(i + 5, len(lines))):
+                ln = lines[wi]
+                # Stop if this looks like a new nutrient row (not another energy line)
+                if self._is_new_nutrient_row(ln) and "energy" not in ln.lower():
+                    break
+                window.append(ln)
             window_text = "\n".join(window).lower()
-
             kj_vals   = [float(m) for m in re.findall(r"(\d+\.?\d*)\s*kj",   window_text)]
             kcal_vals = [float(m) for m in re.findall(r"(\d+\.?\d*)\s*kcal", window_text)]
 
-            # Fallback: pure number line after Energy when no unit tag on line
+            # Special case: "Energy(kcal)" — kcal is in the label name, not after numbers.
+            # Extract all numbers from the trigger line directly as kcal values.
+            if not kcal_vals and "kcal" in lines[i].lower():
+                kcal_vals = self._extract_numbers(lines[i])[:2]
+
             if not kcal_vals:
                 for sub in window[1:]:
                     nums = self._extract_numbers(sub)
                     if nums and "kj" not in sub.lower():
-                        kcal_vals = nums
+                        kcal_vals = nums[:2]
                         break
-
+            # For 3-column, take only first 2 values
             if kj_vals:
-                self._assign(kj_vals,   col_order, FIELD_ENERGY_KJ_100,   FIELD_ENERGY_KJ_SRV,   result)
+                self._assign(kj_vals[:2],   col_order, FIELD_ENERGY_KJ_100,   FIELD_ENERGY_KJ_SRV,   result)
             if kcal_vals:
-                self._assign(kcal_vals, col_order, FIELD_ENERGY_KCAL_100, FIELD_ENERGY_KCAL_SRV, result)
-
+                self._assign(kcal_vals[:2], col_order, FIELD_ENERGY_KCAL_100, FIELD_ENERGY_KCAL_SRV, result)
             self._log_energy(result)
             break
 
     # -----------------------------------------------------------------------
-    # STACKED mode – energy
+    # STACKED energy
     # -----------------------------------------------------------------------
 
-    def _extract_energy_stacked(self, lines: List[str], col_order: str, result: Dict) -> None:
-        """
-        Handle stacked energy layout where values are on separate lines.
-
-        Real OCR example (Kandos, srv_first):
-            [06] Energy
-            [07] 250.3           ← kJ col-1  (no unit – pure number)
-            [08] 2275.2kJ        ← kJ col-2
-            [09] 59.9 kcal       ← kcal col-1
-            [10] 545.2           ← kcal col-2  (no unit)
-
-        Strategy:
-          1. Find the "Energy" trigger line.
-          2. Collect the next value lines (up to 6) until a new nutrient name.
-          3. Separate kJ values from kcal values using unit tags.
-          4. Lines with NO unit tag adjacent to kJ lines belong to kJ;
-             lines adjacent to kcal lines belong to kcal.
-        """
+    def _extract_energy_stacked(self, lines, col_order, result):
         for i, line in enumerate(lines):
             if not re.search(r"\benergy\b", line.lower()):
                 continue
-
-            # Collect up to 6 pure-value lines following "Energy"
-            value_lines: List[str] = []
+            value_lines = []
             for j in range(i + 1, min(i + 7, len(lines))):
                 vl = lines[j]
-                # Stop if we hit a new nutrient name
-                if self._is_new_nutrient_row(vl):
+                if self._is_new_nutrient_row(vl) and "energy" not in vl.lower():
                     break
                 if re.search(r"\d", vl):
                     value_lines.append(vl)
 
-            # Classify value lines as kJ or kcal using PAIR-BASED logic.
-            #
-            # Stacked labels emit values in col-1/col-2 pairs:
-            #   250.3      ← kJ col-1 (no unit tag)
-            #   2275.2kJ   ← kJ col-2 (has 'kj' tag)
-            #   59.9 kcal  ← kcal col-1 (has 'kcal' tag)
-            #   545.2      ← kcal col-2 (no unit tag)
-            #
-            # Group consecutive entries into pairs.  Within each pair at least
-            # one line usually has a unit tag; propagate that tag to the other.
-            kj_vals:   List[float] = []
-            kcal_vals: List[float] = []
-
-            entries: List[Tuple] = []   # (value, unit_tag | None)
+            entries = []
             for vl in value_lines:
-                lo = vl.lower()
+                lo   = vl.lower()
                 nums = self._extract_numbers(vl)
                 if not nums:
                     continue
-                tag = ("kcal" if "kcal" in lo
-                       else ("kj" if "kj" in lo else None))
+                tag = ("kcal" if "kcal" in lo else ("kj" if "kj" in lo else None))
                 entries.append((nums[0], tag))
 
+            kj_vals, kcal_vals = [], []
             for pi in range(0, len(entries), 2):
                 a = entries[pi]
                 b = entries[pi + 1] if pi + 1 < len(entries) else None
-                pair_unit  = a[1] or (b[1] if b else None)
-                pair_vals  = [a[0]] + ([b[0]] if b else [])
-
+                pair_unit = a[1] or (b[1] if b else None)
+                pair_vals = [a[0]] + ([b[0]] if b else [])
                 if pair_unit == "kj":
                     kj_vals.extend(pair_vals)
                 elif pair_unit == "kcal":
                     kcal_vals.extend(pair_vals)
                 else:
-                    # No tag at all → classify by magnitude
                     for v in pair_vals:
                         (kj_vals if v > 200 else kcal_vals).append(v)
 
@@ -463,20 +496,11 @@ class NutritionParser:
                 self._assign(kj_vals,   col_order, FIELD_ENERGY_KJ_100,   FIELD_ENERGY_KJ_SRV,   result)
             if kcal_vals:
                 self._assign(kcal_vals, col_order, FIELD_ENERGY_KCAL_100, FIELD_ENERGY_KCAL_SRV, result)
-
             self._log_energy(result)
             break
 
-    def _is_new_nutrient_row(self, line: str) -> bool:
-        """Return True if line starts a new nutrient section."""
-        lo = line.lower()
-        for kw in NEW_ROW_KEYWORDS:
-            if kw in lo:
-                return True
-        return False
-
     @staticmethod
-    def _log_energy(result: Dict) -> None:
+    def _log_energy(result):
         if FIELD_ENERGY_KCAL_100 in result:
             print(f"  ✓ Energy  kcal/100g={result.get(FIELD_ENERGY_KCAL_100)}  "
                   f"kcal/srv={result.get(FIELD_ENERGY_KCAL_SRV)}")
@@ -485,143 +509,126 @@ class NutritionParser:
                   f"kJ/srv={result.get(FIELD_ENERGY_KJ_SRV)}")
 
     # -----------------------------------------------------------------------
-    # INLINE mode – all other nutrients
+    # INLINE nutrients
     # -----------------------------------------------------------------------
 
-    def _extract_nutrients_inline(self, lines: List[str], col_order: str, result: Dict) -> None:
-        """
-        Extract nutrients when values appear on the same line as the name.
-        E.g.:  Protein   2.18 g   3.92 g
-        """
+    def _extract_nutrients_inline(self, lines, col_order, result, col_count=2):
         used: set = set()
-
         for (keywords, field_100, field_srv, unit) in NUTRIENT_MAP:
             idx = self._find_keyword_line(lines, keywords, used)
             if idx is None:
                 continue
-
+            # Skip sub-rows
+            if self._is_subrow(lines[idx]):
+                continue
             used.add(idx)
-
-            # Collect values from the trigger line + up to 2 continuation lines
-            vals = self._collect_inline_values(lines, idx, unit)
-
+            vals = self._collect_inline_values(lines, idx, unit, col_count)
             if not vals:
                 continue
-
             sodium_conv = (field_100 == FIELD_SODIUM_100 and
                            self._sodium_needs_conversion(lines[idx: idx + 3]))
-
             self._assign(vals, col_order, field_100, field_srv, result,
                          sodium_conversion=sodium_conv)
-
             self._log_nutrient(keywords[0], field_100, field_srv, result)
 
-    def _collect_inline_values(self, lines: List[str], idx: int, unit: str) -> List[float]:
+    def _collect_inline_values(self, lines, idx, unit, col_count=2) -> List[float]:
         """
-        Extract up to 2 numeric values starting from lines[idx].
-        Continuation lines are included only if they look like value lines.
+        Extract up to 2 values from the inline nutrient row.
+        For 3-column labels: take first 2 values only (ignore %RDA).
         """
-        vals: List[float] = []
+        vals = []
         context_end = min(idx + 3, len(lines))
-
         for j in range(idx, context_end):
             line = lines[j]
             lo   = line.lower()
-
-            # Stop at continuation lines that are new nutrient rows
-            if j > idx and self._is_new_nutrient_row(lo):
-                break
-
+            if j > idx:
+                if self._is_new_nutrient_row(lo) or self._is_subrow(lo):
+                    break
             for n in self._extract_numbers(line):
                 if unit == "g"  and n > 999:
                     continue
                 if unit == "mg" and n > 99999:
                     continue
                 vals.append(n)
-                if len(vals) == 2:
+                if len(vals) == 2:  # always take max 2 (ignore 3rd column)
                     return vals
-
         return vals
 
     # -----------------------------------------------------------------------
-    # STACKED mode – all other nutrients
+    # STACKED nutrients
     # -----------------------------------------------------------------------
 
-    def _extract_nutrients_stacked(self, lines: List[str], col_order: str, result: Dict) -> None:
-        """
-        Extract nutrients when each value is on its own line below the name.
-
-        Pattern:
-            [11] Protein          ← trigger
-            [12] 0.8g             ← value col-1
-            [13] 7.7g             ← value col-2
-        """
+    def _extract_nutrients_stacked(self, lines, col_order, result):
         used: set = set()
-
         for (keywords, field_100, field_srv, unit) in NUTRIENT_MAP:
             idx = self._find_keyword_line(lines, keywords, used)
             if idx is None:
                 continue
-
+            if self._is_subrow(lines[idx]):
+                continue
             used.add(idx)
-
-            # Collect up to 2 value lines immediately below the trigger
             vals = self._collect_stacked_values(lines, idx, unit)
-
             if not vals:
                 continue
-
+            # For sodium: check both below AND above for mg tag
+            sodium_window = lines[max(0, idx-3): idx+4]
             sodium_conv = (field_100 == FIELD_SODIUM_100 and
-                           self._sodium_needs_conversion(lines[idx: idx + 4]))
-
+                           self._sodium_needs_conversion(sodium_window))
             self._assign(vals, col_order, field_100, field_srv, result,
                          sodium_conversion=sodium_conv)
-
             self._log_nutrient(keywords[0], field_100, field_srv, result)
 
-    def _collect_stacked_values(self, lines: List[str], idx: int, unit: str) -> List[float]:
+    def _collect_stacked_values(self, lines, idx, unit) -> List[float]:
         """
-        Collect up to 2 values from lines immediately following lines[idx].
-        Each stacked line contributes exactly ONE value.
-        Stop at the first line that looks like a new nutrient name.
+        Collect up to 2 values from lines below the trigger.
+        Falls back to looking ABOVE the trigger if nothing found below —
+        some OCR layouts place values before the nutrient keyword line.
         """
-        vals: List[float] = []
-
+        # Forward scan (normal)
+        vals = []
         for j in range(idx + 1, min(idx + 5, len(lines))):
             line = lines[j]
-
-            # Stop at new nutrient name lines
-            if self._is_new_nutrient_row(line):
+            if self._is_new_nutrient_row(line) or self._is_subrow(line):
                 break
-
             nums = self._extract_numbers(line)
             if not nums:
                 continue
-
-            n = nums[0]  # take the first (usually only) number per line
-
+            n = nums[0]
             if unit == "g"  and n > 999:
                 continue
             if unit == "mg" and n > 99999:
                 continue
-
             vals.append(n)
             if len(vals) == 2:
                 break
+        if vals:
+            return vals
 
-        return vals
+        # Backward scan — keyword comes AFTER its values in the OCR stream
+        above = []
+        for j in range(idx - 1, max(idx - 4, -1), -1):
+            line = lines[j]
+            if self._is_new_nutrient_row(line) or self._is_subrow(line):
+                break
+            nums = self._extract_numbers(line)
+            if not nums:
+                continue
+            n = nums[0]
+            if unit == "g"  and n > 999:
+                continue
+            if unit == "mg" and n > 99999:
+                continue
+            above.insert(0, n)  # prepend to preserve original order
+            if len(above) == 2:
+                break
+        return above
 
     # -----------------------------------------------------------------------
     # Shared utilities
     # -----------------------------------------------------------------------
 
     @staticmethod
-    def _find_keyword_line(
-        lines: List[str],
-        keywords: List[str],
-        used: set,
-    ) -> Optional[int]:
-        """Return index of first line matching any keyword, skipping used lines."""
+    def _find_keyword_line(lines, keywords, used):
         for i, line in enumerate(lines):
             if i in used:
                 continue
@@ -632,108 +639,46 @@ class NutritionParser:
         return None
 
     @staticmethod
-    def _assign(
-        vals: List[float],
-        col_order: str,
-        field_100: str,
-        field_srv: Optional[str],
-        result: Dict,
-        sodium_conversion: bool = False,
-    ) -> None:
-        """
-        Write vals[0] and vals[1] into result using the correct column assignment.
-
-        col_order:
-          'srv_first'  → vals[0]=serving,  vals[1]=100g
-          '100_first'  → vals[0]=100g,     vals[1]=serving
-        """
-        def maybe_mg(v: float) -> float:
+    def _assign(vals, col_order, field_100, field_srv, result, sodium_conversion=False):
+        def maybe_mg(v):
             return round(v * 1000, 3) if sodium_conversion and v < 5 else v
-
-        if len(vals) == 0:
+        if not vals:
             return
-
         if len(vals) == 1:
-            # Only one value found – store as 100g value (most reliable)
             result[field_100] = maybe_mg(vals[0])
             return
-
         v0, v1 = vals[0], vals[1]
-
         if col_order == "srv_first":
-            val_srv = v0
-            val_100 = v1
-        else:  # 100_first (default)
-            val_100 = v0
-            val_srv = v1
-
+            val_srv, val_100 = v0, v1
+        else:
+            val_100, val_srv = v0, v1
         result[field_100] = maybe_mg(val_100)
         if field_srv:
             result[field_srv] = maybe_mg(val_srv)
 
     @staticmethod
-    def _log_nutrient(label: str, field_100: str, field_srv: Optional[str],
-                      result: Dict) -> None:
+    def _log_nutrient(label, field_100, field_srv, result):
         srv_val = result.get(field_srv, "—") if field_srv else "—"
-        print(f"  ✓ {label:35s}  /100g={result.get(field_100, '—'):>8}  "
-              f"/srv={srv_val}")
+        print(f"  ✓ {label:35s}  /100g={result.get(field_100, '—'):>8}  /srv={srv_val}")
 
+    @staticmethod
+    def _debug_print_lines(lines):
+        print("\n" + "=" * 60)
+        print("OCR TEXT (cleaned lines):")
+        print("=" * 60)
+        for i, l in enumerate(lines):
+            print(f"  [{i:02d}] {l}")
+        print("=" * 60 + "\n")
 
-# ---------------------------------------------------------------------------
-# Quick self-test
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    parser = NutritionParser()
+    @staticmethod
+    def _debug_print_result(result):
+        print("\n" + "=" * 60)
+        print("PARSED NUTRITION DATA:")
+        print("=" * 60)
+        for k, v in result.items():
+            print(f"  {k}: {v}")
+        print("=" * 60 + "\n")
 
-    # --- Real OCR output from Kandos label (stacked, srv_first) ---
-    real_ocr = """
-NUTRITION INFORMATION
-Serving size:11g
-Serving per pack:10
-Average Quantity Average Quantity
-per'Serving
-per 100g
-Energy
-250.3
-2275.2kJ
-59.9 kcal
-545.2
-Protein
-0.8g
-7.7g
-Fat-Total
-3.7g
-33.5g
-Saturated fatty acids
-2.3g
-20.6 g
-Trans fatty acids
-0g
-0g
-Carbohydrates-Tota
-5.9g
-53.2g
-Dietary fiber
-0.2g
-1.8g
-Sugar
-5.7g
-52.1g
-Sodium(Na)
-0.02g
-0.2g
-"""
-    print("=" * 60)
-    print("REAL OCR – Kandos Chocolate (stacked, srv_first)")
-    print("=" * 60)
-    result = parser.parse(real_ocr)
-
-    print("\nExpected  protein_g=7.7  protein_per_serving_g=0.8")
-    print(f"Got       protein_g={result.get('protein_g')}  "
-          f"protein_per_serving_g={result.get('protein_per_serving_g')}")
-    print("\nExpected  sodium_mg=200.0  sodium_per_serving_mg=20.0")
-    print(f"Got       sodium_mg={result.get('sodium_mg')}  "
-          f"sodium_per_serving_mg={result.get('sodium_per_serving_mg')}")
-    print("\nExpected  energy_kcal_per_100g=545.2  energy_kcal_per_serving=59.9")
-    print(f"Got       energy_kcal_per_100g={result.get('energy_kcal_per_100g')}  "
-          f"energy_kcal_per_serving={result.get('energy_kcal_per_serving')}")
+    def _clean_lines(self, text):
+        lines = [l.strip() for l in text.split("\n") if l.strip()]
+        return [self._normalize_ocr_units(l) for l in lines]
