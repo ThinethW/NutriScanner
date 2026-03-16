@@ -1,199 +1,148 @@
 """
 NutriScanner - Unified Interface
-Handles BOTH packaged food AND meal plate analysis
 """
 from pathlib import Path
 import json
 from typing import List, Dict, Union
+import sys
 
+# Get the project root directory
+PROJECT_ROOT = Path(__file__).parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Now use absolute imports
 from label_scanner import PackagedFoodScanner
-from meal_analyzer import SriLankanNutritionalAnalyzer
+from meal_analyzer.analyzer import SriLankanNutritionalAnalyzer
 from config.config import FOOD_DATABASE_PATH, OUTPUTS_DIR
 
 
 class NutriScanner:
     """
     Unified nutrition scanner for:
-    1. Packaged food labels (images)
-    2. Traditional meal plates (food items list)
+    1. Packaged food labels (images) → Extract + Analyze
+    2. Traditional meal plates (food items list) → Calculate + Analyze
     """
 
     def __init__(self):
-        # Initialize both scanners
         self.package_scanner = PackagedFoodScanner()
         self.meal_analyzer = SriLankanNutritionalAnalyzer(
             nutrition_database_path=FOOD_DATABASE_PATH,
             verbose=True
         )
 
-    def scan_packaged_food(self, image_path: str) -> Dict:
+    def scan_and_analyze_package(self, image_path: str) -> Dict:
         """
-        Scan nutrition label from packaged food image
+        Complete packaged food analysis:
+        1. Scan label (extract data)
+        2. Analyze nutrition (generate insights)
 
         Args:
             image_path: Path to package photo
 
         Returns:
-            Dictionary with nutrition data
+            Complete analysis with insights
         """
         print("\n" + "=" * 60)
-        print("SCANNING PACKAGED FOOD")
+        print("PACKAGED FOOD ANALYSIS")
         print("=" * 60 + "\n")
 
-        result = self.package_scanner.scan(image_path)
+        # Step 1: Scan label
+        scan_result = self.package_scanner.scan(image_path)
 
-        if result['success']:
-            print("✅ Scan successful!")
-            print("\nNutrition Data:")
-            print(json.dumps(result['data'], indent=2))
-        else:
-            print(f"❌ Scan failed: {result['error']}")
+        if not scan_result['success']:
+            return {"success": False, "error": scan_result['error']}
 
-        return result
+        print("✅ Label scan successful!")
 
-    def analyze_meal_plate(self, food_items: List[str]) -> Dict:
-        """
-        Analyze traditional Sri Lankan meal
-
-        Args:
-            food_items: List of food items on plate
-
-        Returns:
-            Complete nutritional analysis
-        """
-        print("\n" + "=" * 60)
-        print("ANALYZING MEAL PLATE")
-        print("=" * 60 + "\n")
-
-        # Run analysis
-        result = self.meal_analyzer.analyze_meal(food_items)
+        # Step 2: Analyze nutrition
+        analysis_result = self.meal_analyzer.analyze_packaged_food(
+            scan_result['data']
+        )
 
         # Generate report
-        report = self.meal_analyzer.generate_text_report(result)
+        report = self.meal_analyzer.generate_text_report(analysis_result)
         print(report)
 
         # Save visualizations
-        self._save_visualizations(result)
-
-        # Return JSON
-        return self.meal_analyzer.export_to_json(result)
-
-    def compare_packaged_vs_meal(
-            self,
-            package_image: str,
-            meal_items: List[str]
-    ) -> Dict:
-        """
-        Compare packaged food with homemade meal
-
-        Args:
-            package_image: Path to package photo
-            meal_items: List of meal items
-
-        Returns:
-            Comparison data
-        """
-        print("\n" + "=" * 60)
-        print("COMPARISON: Packaged vs Homemade")
-        print("=" * 60 + "\n")
-
-        # Scan both
-        package_data = self.scan_packaged_food(package_image)
-        meal_data = self.analyze_meal_plate(meal_items)
-
-        if not package_data['success']:
-            return {"error": "Package scan failed"}
-
-        # Compare
-        comparison = self._generate_comparison(
-            package_data['data'],
-            meal_data['totals']
-        )
+        viz_paths = self._save_visualizations(analysis_result)
 
         return {
-            "packaged_food": package_data['data'],
-            "meal_plate": meal_data['totals'],
-            "comparison": comparison
+            "success": True,
+            "scan_data": scan_result['data'],
+            "health_indexes": analysis_result.indexes,
+            "report": report,
+            "visualizations": viz_paths
         }
 
-    def _save_visualizations(self, result):
-        """Save analysis visualizations"""
+    def analyze_meal_plate(self, food_items: List[str]) -> Dict:
+        """
+        Analyze traditional meal
+        """
+        print("\n" + "=" * 60)
+        print("MEAL PLATE ANALYSIS")
+        print("=" * 60 + "\n")
+
+        result = self.meal_analyzer.analyze_meal(food_items)
+        report = self.meal_analyzer.generate_text_report(result)
+        print(report)
+
+        viz_paths = self._save_visualizations(result)
+
+        return {
+            "success": True,
+            "items": [
+                {
+                    "name": item.input_name,
+                    "matched": item.matched_food_item,
+                    "portion_g": item.grams,
+                    "confidence": item.match_confidence
+                }
+                for item in result.items
+            ],
+            "health_indexes": result.indexes,
+            "report": report,
+            "visualizations": viz_paths
+        }
+
+    def analyze(self, input_data) -> Dict:
+        """
+        Smart analyzer - detects input type automatically
+
+        Args:
+            input_data: Either image path (str) or food items (list)
+
+        Returns:
+            Complete analysis
+        """
+        if isinstance(input_data, str):
+            # It's an image path → packaged food
+            return self.scan_and_analyze_package(input_data)
+        elif isinstance(input_data, list):
+            # It's a list of foods → meal plate
+            return self.analyze_meal_plate(input_data)
+        else:
+            return {
+                "success": False,
+                "error": "Invalid input type. Expected image path (str) or food items (list)"
+            }
+
+    def _save_visualizations(self, result) -> Dict[str, str]:
+        """Save analysis visualizations and return paths"""
         viz_dir = OUTPUTS_DIR / "visualizations"
         viz_dir.mkdir(exist_ok=True)
+
+        viz_paths = {}
 
         for name, fig in result.figures.items():
             png_path = viz_dir / f"{name}.png"
             fig.savefig(png_path, dpi=300, bbox_inches='tight')
+            viz_paths[name] = str(png_path)
             print(f"  ✓ Saved: {png_path.name}")
 
-    def _generate_comparison(self, package: Dict, meal: Dict) -> Dict:
-        """Generate comparison metrics"""
-        return {
-            "energy_kcal": {
-                "packaged": package.get('energy_kcal_per_100g', 0),
-                "meal": meal.get('Energy (kcal)', 0)
-            },
-            "protein_g": {
-                "packaged": package.get('protein_g', 0),
-                "meal": meal.get('Protein (g)', 0)
-            },
-            "carbs_g": {
-                "packaged": package.get('carbohydrates_g', 0),
-                "meal": meal.get('Carbohydrates digestible (g)', 0)
-            },
-            "fat_g": {
-                "packaged": package.get('total_fat_g', 0),
-                "meal": meal.get('Fat (g)', 0)
-            },
-            "sodium_mg": {
-                "packaged": package.get('sodium_mg', 0),
-                "meal": meal.get('Sodium', 0)
-            }
-        }
+        return viz_paths
 
 
-# ============================================================================
-# Example Usage
-# ============================================================================
-
+# Allow testing
 if __name__ == "__main__":
     scanner = NutriScanner()
-
-    # Example 1: Scan packaged food
-    print("\n" + "#" * 60)
-    print("# Example 1: Packaged Food Scan")
-    print("#" * 60)
-
-    package_result = scanner.scan_packaged_food("img.png")
-
-    # Example 2: Analyze meal plate
-    print("\n" + "#" * 60)
-    print("# Example 2: Meal Plate Analysis")
-    print("#" * 60)
-
-    meal_result = scanner.analyze_meal_plate([
-        "Boiled Rice, Keeri Samba",
-        "Chicken curry",
-        "Dhal curry, thick"
-    ])
-
-    # Example 3: Compare both
-    print("\n" + "#" * 60)
-    print("# Example 3: Comparison")
-    print("#" * 60)
-
-    comparison = scanner.compare_packaged_vs_meal(
-        package_image="img.png",
-        meal_items=["Boiled Rice", "Chicken curry"]
-    )
-
-    # Save all results
-    results_file = OUTPUTS_DIR / "complete_results.json"
-    with open(results_file, 'w') as f:
-        json.dump({
-            "packaged_food": package_result,
-            "meal_analysis": meal_result,
-            "comparison": comparison
-        }, f, indent=2)
-
-    print(f"\n✓ All results saved to: {results_file}")
+    print("✅ NutriScanner initialized successfully!")
