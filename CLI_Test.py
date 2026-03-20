@@ -198,7 +198,7 @@ def CLI_main():
         o2 = []
         for i in o1:
             print(f"\n----  now checking {i}")
-            o2i = Est_Handler.Est_Handler(i, "image")
+            o2i = Est_Handler.main(i, "image")
             o2.append(o2i)
 
         print(f"\n\n\n=======================\n"

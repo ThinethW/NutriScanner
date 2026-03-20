@@ -122,11 +122,9 @@ def get_item_values(item_name: str) -> tuple:
     best_score = 0.0
 
     csv_files = [
-        ("data_extraction_estimation/FrequentedData.csv",              True,  True),
-        ("data_extraction_estimation/module_2_datasets/IRD.csv",       False, True),
-        ("data_extraction_estimation/module_2_datasets/External.csv",  False, False),
-        ("data_extraction_estimation/module_2_datasets/Fastfood.csv",  False, False),
-        ("data_extraction_estimation/module_2_datasets/USDA.csv",      False, True),
+        (r"FrequentedData.csv",              True,  True),
+        (r"module_2_datasets/IRD.csv",       False, True),
+        (r"module_2_datasets/USDA.csv",      False, True),
     ]
 
     for filename, reverse, yoda in csv_files:
