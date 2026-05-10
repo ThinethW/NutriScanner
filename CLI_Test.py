@@ -1,5 +1,5 @@
 import model1
-from data_extraction_estimation import Est_Handler, Est_Handler, Label_Extraction
+from data_extraction_estimation import Est_Handler, Est_Handler
 import nutritional_analysis.analyzer_refac as a
 
 

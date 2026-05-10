@@ -7,7 +7,7 @@ PARENT_DIR = Path(__file__).resolve().parent.parent
 if str(PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(PARENT_DIR))
 
-from main import NutriScanner
+from nutritional_analysis.main import NutriScanner
 
 # Page config
 st.set_page_config(
