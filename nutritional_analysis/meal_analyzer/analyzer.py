@@ -704,16 +704,9 @@ class SriLankanNutritionalAnalyzer:
     def generate_visualizations(self, totals, indexes, items):
         """Generate both standard and comparison visualizations"""
         from .visualizations import generate_beautiful_visualizations
-        from .comparison_charts import generate_comparison_visualizations
+        return generate_beautiful_visualizations(totals, indexes, items)
 
-        # Get standard visualizations
-        figures = generate_beautiful_visualizations(totals, indexes, items)
 
-        # Add comparison visualizations
-        comparison_figs = generate_comparison_visualizations(totals)
-        figures.update(comparison_figs)
-
-        return figures
 
 
     def analyze_meal(self, food_items: List[str]) -> MealAnalysisResult:
